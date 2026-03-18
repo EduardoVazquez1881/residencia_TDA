@@ -1,7 +1,7 @@
 import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider,
+    DarkTheme,
+    DefaultTheme,
+    ThemeProvider,
 } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -22,6 +22,20 @@ export default function RootLayout() {
           options={{
             headerShown: true,
             title: "Demo Tailwind + Supabase",
+          }}
+        />
+        <Stack.Screen
+          name="register"
+          options={{
+            headerShown: true,
+            title: "Registro",
+          }}
+        />
+        <Stack.Screen
+          name="verify-email"
+          options={{
+            headerShown: true,
+            title: "Verificar Email",
           }}
         />
         <Stack.Screen
