@@ -41,8 +41,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="prueba"
           options={{
-            headerShown: true,
-            title: "Panel de Usuario",
+            headerShown: false,
           }}
         />
       </Stack>
