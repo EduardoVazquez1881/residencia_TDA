@@ -12,6 +12,7 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { getCurrentSession } from "@/services/auth.service";
+import { AlumnoData, getAlumnos } from "@/services/alumnos.service";
 import { getUsuario, UsuarioData } from "@/services/usuarios.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
@@ -26,66 +27,23 @@ import {
   View,
 } from "react-native";
 
-// ─── Tipos de datos de ejemplo ────────────────────────────────────────────────
-interface ProximaSesion {
-  nombre: string;
-  hora: string;
-  grado: string;
-}
 
-interface BusquedaReciente {
-  id: string;
-  nombre: string;
-  proximaSesion: string;
-  estado: "Confirmada" | "Revisión Pendiente" | "Cancelada";
-}
-
-// ─── Datos de ejemplo (se reemplazarán con datos reales de la BD) ─────────────
-const PROXIMA_SESION: ProximaSesion = {
-  nombre: "Alan Carrillo",
-  hora: "Hoy, 10:00 AM",
-  grado: "Grado 3B",
-};
-
-const BUSQUEDAS_RECIENTES: BusquedaReciente[] = [
-  {
-    id: "1",
-    nombre: "Mario Cervantes",
-    proximaSesion: "Siguiente sesion: 10/03/26",
-    estado: "Revisión Pendiente",
-  },
-  {
-    id: "2",
-    nombre: "Sofia Martinez",
-    proximaSesion: "Siguiente sesion: 09/03/26",
-    estado: "Confirmada",
-  },
-];
-
-// ─── Colores de estado ────────────────────────────────────────────────────────
-function getEstadoColor(estado: BusquedaReciente["estado"], colors: typeof Colors.light) {
-  switch (estado) {
-    case "Confirmada":
-      return colors.success;
-    case "Revisión Pendiente":
-      return colors.warning;
-    case "Cancelada":
-      return colors.error;
-    default:
-      return colors.textSecondary;
+// ─── Helpers nivel TEA ────────────────────────────────────────────────────────
+function getNivelTeaColor(nivel: number | null | undefined): string {
+  switch (nivel) {
+    case 1: return "#10b981";
+    case 2: return "#f59e0b";
+    case 3: return "#ef4444";
+    default: return "#9ca3af";
   }
 }
 
-function getEstadoIcon(estado: BusquedaReciente["estado"]) {
-  switch (estado) {
-    case "Confirmada":
-      return "checkmark-circle";
-    case "Revisión Pendiente":
-      return "star";
-    case "Cancelada":
-      return "close-circle";
-    default:
-      return "ellipse";
+function getNivelTeaBg(nivel: number | null | undefined, isDark: boolean): string {
+  switch (nivel) {
+    case 1: return isDark ? "#1a2e27" : "#ecfdf5";
+    case 2: return isDark ? "#2e2010" : "#fffbeb";
+    case 3: return isDark ? "#2e1515" : "#fef2f2";
+    default: return isDark ? "#1f2937" : "#f3f4f6";
   }
 }
 
@@ -104,6 +62,7 @@ export function HomeScreen() {
   const colors = Colors[colorScheme as "light" | "dark"];
 
   const [userData, setUserData] = useState<UsuarioData | null>(null);
+  const [alumnos, setAlumnos] = useState<AlumnoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
 
@@ -119,10 +78,14 @@ export function HomeScreen() {
           router.replace("/");
           return;
         }
-        const user = await getUsuario(session.user.id);
+        const [user, alumnosList] = await Promise.all([
+          getUsuario(session.user.id),
+          getAlumnos(session.user.id),
+        ]);
         setUserData(user);
+        setAlumnos(alumnosList);
       } catch (e) {
-        console.error("Error fetching user:", e);
+        console.error("Error fetching data:", e);
       } finally {
         setLoading(false);
       }
@@ -164,6 +127,13 @@ export function HomeScreen() {
     : "Usuario";
 
   const isDark = colorScheme === "dark";
+
+  // Alumnos filtrados por búsqueda (pseudónimo, case-insensitive)
+  const alumnosFiltrados = searchText.trim()
+    ? alumnos.filter((a) =>
+        a.pseudonimo.toLowerCase().includes(searchText.toLowerCase().trim()),
+      )
+    : alumnos;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -216,80 +186,170 @@ export function HomeScreen() {
           <Ionicons name="search-outline" size={17} color={colors.textSecondary} style={styles.searchIcon} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Buscar alumnos, bitácoras, casos..."
+            placeholder="Buscar alumno por pseudónimo..."
             placeholderTextColor={colors.textSecondary}
             value={searchText}
             onChangeText={setSearchText}
           />
         </View>
 
-        {/* ── Próxima Sesión ── */}
-        <View style={[
-          styles.card,
-          {
-            backgroundColor: isDark ? colors.backgroundSecondary : "#fff",
-            shadowColor: "#000",
-            shadowOpacity: isDark ? 0.15 : 0.06,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 3 },
-            elevation: 3,
-          }
-        ]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Próxima Sesión</Text>
-            <Ionicons name="calendar-outline" size={17} color={colors.textSecondary} />
-          </View>
-
-          <View style={[
-            styles.sessionCard,
+        {/* ── Resumen de Mis Alumnos ── */}
+        <View
+          style={[
+            styles.card,
             {
-              backgroundColor: isDark ? "#ffffff08" : "#f8fafc",
-              borderRadius: 14,
-            }
-          ]}>
-            {/* Avatar del alumno */}
-            <View style={[
-              styles.studentAvatar,
-              { backgroundColor: isDark ? colors.backgroundSecondary : "#e9eef5" }
-            ]}>
-              <Ionicons name="person" size={20} color={colors.textSecondary} />
-            </View>
-            <View>
-              <Text style={[styles.studentName, { color: colors.text }]}>
-                {PROXIMA_SESION.nombre}
-              </Text>
-              <Text style={[styles.verPerfil, { color: colors.primary }]}>
-                Ver Perfil Completo
-              </Text>
-            </View>
+              backgroundColor: isDark ? colors.backgroundSecondary : "#fff",
+              shadowColor: "#000",
+              shadowOpacity: isDark ? 0.15 : 0.06,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 3,
+            },
+          ]}
+        >
+          {/* Encabezado */}
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Mis Alumnos</Text>
+            <Ionicons name="people-outline" size={17} color={colors.textSecondary} />
           </View>
 
-          <View style={styles.sessionMeta}>
-            <View style={styles.sessionMetaItem}>
-              <Ionicons name="time-outline" size={13} color={colors.textSecondary} />
-              <Text style={[styles.sessionMetaText, { color: colors.textSecondary }]}>
-                {" "}{PROXIMA_SESION.hora}
-              </Text>
-            </View>
-            <View style={styles.sessionMetaItem}>
-              <Ionicons name="school-outline" size={13} color={colors.textSecondary} />
-              <Text style={[styles.sessionMetaText, { color: colors.textSecondary }]}>
-                {" "}{PROXIMA_SESION.grado}
-              </Text>
-            </View>
-          </View>
+          {alumnos.length === 0 ? (
+            /* Sin alumnos — CTA */
+            <TouchableOpacity
+              onPress={() => router.push("/registro-alumno" as any)}
+              activeOpacity={0.8}
+              style={[
+                styles.summaryEmptyRow,
+                { backgroundColor: isDark ? "#ffffff08" : "#f8fafc", borderRadius: 14 },
+              ]}
+            >
+              <View
+                style={[
+                  styles.summaryEmptyIcon,
+                  { backgroundColor: `${colors.primary}18` },
+                ]}
+              >
+                <Ionicons name="person-add-outline" size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.summaryEmptyTitle, { color: colors.text }]}>
+                  Aún no hay alumnos
+                </Text>
+                <Text style={[styles.summaryEmptyDesc, { color: colors.textSecondary }]}>
+                  Toca aquí para registrar tu primer alumno
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          ) : (
+            <>
+              {/* Contador + desglose TEA */}
+              <View style={styles.summaryRow}>
+                {/* Total */}
+                <View
+                  style={[
+                    styles.summaryTotalBox,
+                    { backgroundColor: isDark ? "#ffffff08" : "#f0f7ff" },
+                  ]}
+                >
+                  <Text style={[styles.summaryTotalNum, { color: colors.primary }]}>
+                    {alumnos.length}
+                  </Text>
+                  <Text style={[styles.summaryTotalLabel, { color: colors.textSecondary }]}>
+                    {alumnos.length === 1 ? "alumno" : "alumnos"}{"\n"}activos
+                  </Text>
+                </View>
+
+                {/* Desglose por nivel TEA */}
+                <View style={styles.summaryLevels}>
+                  {[1, 2, 3].map((n) => {
+                    const count = alumnos.filter((a) => a.nivel_tea === n).length;
+                    const color = getNivelTeaColor(n);
+                    const bg = getNivelTeaBg(n, isDark);
+                    return (
+                      <View key={n} style={[styles.summaryLevelRow, { backgroundColor: bg, borderRadius: 10 }]}>
+                        <View style={[styles.nivelDot, { backgroundColor: color }]} />
+                        <Text style={[styles.summaryLevelLabel, { color: colors.textSecondary }]}>
+                          Nivel {n}
+                        </Text>
+                        <Text style={[styles.summaryLevelCount, { color }]}>{count}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Último alumno registrado */}
+              {alumnos[0] && (
+                <View
+                  style={[
+                    styles.lastAlumnoRow,
+                    {
+                      borderTopColor: isDark ? "#ffffff10" : "#f0f0f0",
+                      borderTopWidth: 1,
+                      marginTop: 14,
+                      paddingTop: 14,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.alumnoAvatar,
+                      { backgroundColor: `${colors.primary}1a`, marginRight: 10 },
+                    ]}
+                  >
+                    <Text style={[styles.alumnoInicial, { color: colors.primary, fontSize: 15 }]}>
+                      {alumnos[0].pseudonimo.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ fontSize: 11, color: colors.textSecondary, marginBottom: 1 }]}>
+                      Último registrado
+                    </Text>
+                    <Text style={[{ fontSize: 14, fontWeight: "700", color: colors.text }]}>
+                      {alumnos[0].pseudonimo}
+                    </Text>
+                  </View>
+                  {alumnos[0].nivel_tea ? (
+                    <View
+                      style={[
+                        styles.nivelPill,
+                        { backgroundColor: getNivelTeaBg(alumnos[0].nivel_tea, isDark) },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.nivelDot,
+                          { backgroundColor: getNivelTeaColor(alumnos[0].nivel_tea) },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.estadoText,
+                          { color: getNivelTeaColor(alumnos[0].nivel_tea) },
+                        ]}
+                      >
+                        N{alumnos[0].nivel_tea}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+            </>
+          )}
         </View>
 
         {/* ── Acciones Rápidas ── */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Acciones Rápidas</Text>
         <View style={styles.accionesRow}>
           {[
-            { label: "Nueva Bitácora", icon: "newspaper-outline" as const, bg: isDark ? "#1e2d3d" : "#eff6ff", color: "#3b82f6" },
-            { label: "Expedientes", icon: "person-add-outline" as const, bg: isDark ? "#2d1e1e" : "#fff1f2", color: "#ef4444" },
-            { label: "Alumnos", icon: "people-outline" as const, bg: isDark ? "#251e2d" : "#f5f3ff", color: "#8b5cf6" },
+            { label: "Nueva Bitácora", icon: "newspaper-outline" as const, bg: isDark ? "#1e2d3d" : "#eff6ff", color: "#3b82f6", onPress: () => router.push("/seleccion-bitacora" as any) },
+            { label: "Expedientes", icon: "person-add-outline" as const, bg: isDark ? "#2d1e1e" : "#fff1f2", color: "#ef4444", onPress: () => router.push("/registro-alumno" as any) },
+            { label: "Alumnos", icon: "people-outline" as const, bg: isDark ? "#251e2d" : "#f5f3ff", color: "#8b5cf6", onPress: () => {} },
           ].map((accion) => (
             <TouchableOpacity
               key={accion.label}
+              onPress={accion.onPress}
               style={[
                 styles.accionItem,
                 {
@@ -313,58 +373,126 @@ export function HomeScreen() {
           ))}
         </View>
 
-        {/* ── Búsquedas Recientes ── */}
+        {/* ── Alumnos Recientes ── */}
         <View style={styles.recentesHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>
-            Búsquedas Recientes
+            {searchText.trim() ? "Resultados" : "Alumnos Recientes"}
           </Text>
           <TouchableOpacity>
             <Text style={[styles.verTodo, { color: colors.primary }]}>Ver todo</Text>
           </TouchableOpacity>
         </View>
 
-        {BUSQUEDAS_RECIENTES.map((item) => {
-          const estadoColor = getEstadoColor(item.estado, colors);
-          const estadoIcon = getEstadoIcon(item.estado);
-          return (
-            <View
-              key={item.id}
-              style={[
-                styles.recenteCard,
-                {
-                  backgroundColor: isDark ? colors.backgroundSecondary : "#fff",
-                  shadowColor: "#000",
-                  shadowOpacity: isDark ? 0.12 : 0.05,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: 2,
-                }
-              ]}
-            >
-              <View style={styles.recenteInfo}>
-                <Text style={[styles.recenteName, { color: colors.text }]}>{item.nombre}</Text>
-                <Text style={[styles.recenteMeta, { color: colors.textSecondary }]}>
-                  {item.proximaSesion}
-                </Text>
-                <View style={styles.estadoRow}>
-                  <Ionicons name={estadoIcon as any} size={12} color={estadoColor} />
-                  <Text style={[styles.estadoText, { color: estadoColor }]}>
-                    {" "}{item.estado}
+        {alumnosFiltrados.length === 0 ? (
+          /* ── Estado vacío ── */
+          <View
+            style={[
+              styles.emptyState,
+              {
+                backgroundColor: isDark ? colors.backgroundSecondary : "#fff",
+                shadowColor: "#000",
+                shadowOpacity: isDark ? 0.1 : 0.04,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 2,
+              },
+            ]}
+          >
+            <Ionicons
+              name={searchText.trim() ? "search-outline" : "people-outline"}
+              size={38}
+              color={colors.textSecondary}
+              style={{ opacity: 0.4, marginBottom: 12 }}
+            />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              {searchText.trim() ? "Sin resultados" : "Sin alumnos aún"}
+            </Text>
+            <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
+              {searchText.trim()
+                ? `No se encontró ningún alumno con "${searchText}"`
+                : "Registra tu primer alumno desde Expedientes"}
+            </Text>
+          </View>
+        ) : (
+          alumnosFiltrados.map((alumno) => {
+            const inicial = alumno.pseudonimo.charAt(0).toUpperCase();
+            const nivelColor = getNivelTeaColor(alumno.nivel_tea);
+            const nivelBg = getNivelTeaBg(alumno.nivel_tea, isDark);
+            const escuelaMeta = [
+              alumno.escuela_actual,
+              [alumno.grado_escolar, alumno.grupo_escolar].filter(Boolean).join(" - "),
+            ]
+              .filter(Boolean)
+              .join(" · ");
+
+            return (
+              <View
+                key={alumno.alumno_id}
+                style={[
+                  styles.recenteCard,
+                  {
+                    backgroundColor: isDark ? colors.backgroundSecondary : "#fff",
+                    shadowColor: "#000",
+                    shadowOpacity: isDark ? 0.12 : 0.05,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 2 },
+                    elevation: 2,
+                  },
+                ]}
+              >
+                {/* Avatar con inicial */}
+                <View
+                  style={[
+                    styles.alumnoAvatar,
+                    { backgroundColor: `${colors.primary}1a` },
+                  ]}
+                >
+                  <Text style={[styles.alumnoInicial, { color: colors.primary }]}>
+                    {inicial}
                   </Text>
                 </View>
+
+                <View style={styles.recenteInfo}>
+                  <Text style={[styles.recenteName, { color: colors.text }]}>
+                    {alumno.pseudonimo}
+                  </Text>
+                  {escuelaMeta ? (
+                    <Text
+                      style={[styles.recenteMeta, { color: colors.textSecondary }]}
+                      numberOfLines={1}
+                    >
+                      {escuelaMeta}
+                    </Text>
+                  ) : null}
+                  {alumno.nivel_tea ? (
+                    <View style={styles.estadoRow}>
+                      <View
+                        style={[styles.nivelPill, { backgroundColor: nivelBg }]}
+                      >
+                        <View
+                          style={[styles.nivelDot, { backgroundColor: nivelColor }]}
+                        />
+                        <Text style={[styles.estadoText, { color: nivelColor }]}>
+                          Nivel {alumno.nivel_tea} TEA
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.verBtn,
+                    { backgroundColor: isDark ? "#ffffff10" : "#f5f7fa" },
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.verBtnText, { color: colors.text }]}>Ver</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={[
-                  styles.verBtn,
-                  { backgroundColor: isDark ? "#ffffff10" : "#f5f7fa" }
-                ]}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.verBtnText, { color: colors.text }]}>Ver</Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
 
         {/* Espacio al final para el tab bar */}
         <View style={{ height: 90 }} />
@@ -508,41 +636,76 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
 
-  // Próxima sesión
-  sessionCard: {
+  // ─ Card resumen Mis Alumnos ─
+  summaryRow: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "stretch",
+  },
+  summaryTotalBox: {
+    borderRadius: 14,
+    padding: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 80,
+  },
+  summaryTotalNum: {
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: -1,
+    lineHeight: 36,
+  },
+  summaryTotalLabel: {
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  summaryLevels: {
+    flex: 1,
+    gap: 6,
+    justifyContent: "center",
+  },
+  summaryLevelRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    gap: 12,
-    marginBottom: 14,
+    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
-  studentAvatar: {
+  summaryLevelLabel: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  summaryLevelCount: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  lastAlumnoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  summaryEmptyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    gap: 12,
+  },
+  summaryEmptyIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
   },
-  studentName: {
-    fontSize: 15,
-    fontWeight: "600",
+  summaryEmptyTitle: {
+    fontSize: 14,
+    fontWeight: "700",
   },
-  verPerfil: {
+  summaryEmptyDesc: {
     fontSize: 12,
-    marginTop: 3,
-    fontWeight: "500",
-  },
-  sessionMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 4,
-  },
-  sessionMetaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  sessionMetaText: {
-    fontSize: 12,
+    marginTop: 2,
   },
 
   // Acciones Rápidas
@@ -579,7 +742,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
 
-  // Búsquedas Recientes
+  // Alumnos Recientes
   recentesHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -614,8 +777,8 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   estadoText: {
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 11,
+    fontWeight: "600",
   },
   verBtn: {
     borderRadius: 12,
@@ -626,6 +789,56 @@ const styles = StyleSheet.create({
   verBtnText: {
     fontSize: 13,
     fontWeight: "500",
+  },
+
+  // Avatar inicial alumno
+  alumnoAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  alumnoInicial: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+
+  // Pill nivel TEA
+  nivelPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: "flex-start",
+  },
+  nivelDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+
+  // Estado vacío
+  emptyState: {
+    borderRadius: 18,
+    padding: 32,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 6,
+    letterSpacing: -0.2,
+  },
+  emptyDesc: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
   },
 
   // Bottom Tab Bar — glassmorphism sutil, sin línea superior

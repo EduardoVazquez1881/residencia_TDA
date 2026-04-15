@@ -44,6 +44,18 @@ export default function RootLayout() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="registro-alumno"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="seleccion-bitacora"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="nueva-plantilla"
+          options={{ headerShown: false }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
