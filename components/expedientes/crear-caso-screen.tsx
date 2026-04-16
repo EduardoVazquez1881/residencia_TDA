@@ -350,7 +350,16 @@ export function CrearCasoScreen() {
                     }
                   ]}
                 >
-                  <Text style={{ color: selectedPlantilla ? "#10b981" : colors.text, fontWeight: selectedPlantilla ? "bold" : "500" }}>
+                  <Text 
+                    style={{ 
+                      color: selectedPlantilla ? "#10b981" : colors.text, 
+                      fontWeight: selectedPlantilla ? "bold" : "500",
+                      flex: 1,
+                      marginRight: 10
+                    }}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
                     {selectedPlantilla 
                       ? plantillas.find(p => p.plantilla_id === selectedPlantilla)?.nombre 
                       : "Toca para seleccionar plantilla..."}
@@ -402,8 +411,14 @@ export function CrearCasoScreen() {
                   }}
                   style={[styles.modalItem, selectedPlantilla === p.plantilla_id && { backgroundColor: `${colors.primary}15` }]}
                 >
-                  <View>
-                    <Text style={{ color: selectedPlantilla === p.plantilla_id ? colors.primary : colors.text, fontWeight: selectedPlantilla === p.plantilla_id ? "bold" : "500", fontSize: 15 }}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text 
+                      style={{ 
+                        color: selectedPlantilla === p.plantilla_id ? colors.primary : colors.text, 
+                        fontWeight: selectedPlantilla === p.plantilla_id ? "bold" : "500", 
+                        fontSize: 15 
+                      }}
+                    >
                       {p.nombre}
                     </Text>
                     {p.es_global && <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>Plantilla Global</Text>}
@@ -418,7 +433,7 @@ export function CrearCasoScreen() {
                 }}
                 style={[styles.modalItem, selectedPlantilla === null && { backgroundColor: `${colors.primary}15` }]}
               >
-                <Text style={{ color: selectedPlantilla === null ? colors.primary : colors.text, fontWeight: selectedPlantilla === null ? "bold" : "500", fontSize: 15 }}>
+                <Text style={{ color: selectedPlantilla === null ? colors.primary : colors.text, fontWeight: selectedPlantilla === null ? "bold" : "500", fontSize: 15, flex: 1, marginRight: 10 }}>
                   Ninguna / Sin plantilla
                 </Text>
                 {selectedPlantilla === null && <Ionicons name="checkmark" size={20} color={colors.primary} />}

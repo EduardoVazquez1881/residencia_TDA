@@ -110,6 +110,7 @@ export function NuevaPlantillaScreen() {
   // Saving
   const [saving, setSaving] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(isEditing);
+  const [originalTerapeutaId, setOriginalTerapeutaId] = useState<string | null>(null);
 
   const scrollRef = useRef<ScrollView>(null);
 
@@ -120,6 +121,7 @@ export function NuevaPlantillaScreen() {
         try {
           const struct = await getPlantillaEstructura(parseInt(editId as string, 10));
           if (struct) {
+            setOriginalTerapeutaId(struct.terapeuta_id);
             setNombre(struct.nombre);
             setDescripcion(struct.descripcion || "");
             setEsGlobal(struct.es_global);
@@ -315,10 +317,24 @@ export function NuevaPlantillaScreen() {
 
     try {
       let result;
-      if (isEditing) {
+      const isOwner = isEditing && originalTerapeutaId === sessionUid;
+
+      if (isEditing && isOwner) {
+        // Actualizar original
         result = await actualizarPlantillaCompleta(parseInt(editId as string, 10), payload);
       } else {
-        result = await crearPlantillaCompleta(payload);
+        // Crear nueva (es creación original o es un CLON)
+        const finalPayload = { ...payload };
+        
+        if (isEditing && !isOwner) {
+          // Si estamos "editando" algo que no es nuestro, es un clon
+          finalPayload.nombre = `Copia de ${payload.nombre}`;
+          // Por seguridad, las copias no deberían ser globales automáticamente 
+          // a menos que el usuario lo decida explícitamente en el wizard
+          // finalPayload.es_global = false; 
+        }
+
+        result = await crearPlantillaCompleta(finalPayload);
       }
 
       setSaving(false);

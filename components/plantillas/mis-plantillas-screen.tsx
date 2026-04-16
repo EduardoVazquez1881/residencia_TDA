@@ -1,7 +1,7 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { getCurrentSession } from "@/services/auth.service";
-import { getPlantillas, PlantillaData, desactivarPlantilla } from "@/services/plantillas.service";
+import { getPlantillas, PlantillaData, desactivarPlantilla, getPlantillaEstructura, PlantillaEstructura } from "@/services/plantillas.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router } from "expo-router";
 import React, { useEffect, useState, useMemo } from "react";
@@ -10,6 +10,8 @@ import {
   Alert,
   Animated,
   FlatList,
+  Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -26,15 +28,21 @@ export function MisPlantillasScreen() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [sessionUid, setSessionUid] = useState<string | null>(null);
+
+  // Preview structure states
+  const [modalEstructuraVisible, setModalEstructuraVisible] = useState(false);
+  const [loadingEstructura, setLoadingEstructura] = useState(false);
+  const [estructuraData, setEstructuraData] = useState<PlantillaEstructura | null>(null);
 
   const fetchPlantillas = async () => {
     try {
       const session = await getCurrentSession();
       if (!session?.user?.id) return;
+      setSessionUid(session.user.id);
       const data = await getPlantillas(session.user.id);
-      // Solo mostrar las del usuario (no las globales de otros)
-      const misPlantillas = data.filter(p => p.terapeuta_id === session.user.id);
-      setPlantillas(misPlantillas);
+      // Ahora mostramos todas las que devuelve el servicio (Propias + Globales)
+      setPlantillas(data);
     } catch (error) {
       console.error("Error fetching plantillas:", error);
     } finally {
@@ -52,6 +60,14 @@ export function MisPlantillasScreen() {
       p.nombre.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [plantillas, searchQuery]);
+
+  const handleVerEstructura = async (id: number) => {
+    setModalEstructuraVisible(true);
+    setLoadingEstructura(true);
+    const data = await getPlantillaEstructura(id);
+    setEstructuraData(data);
+    setLoadingEstructura(false);
+  };
 
   const handleEliminar = (id: number, nombre: string) => {
     Alert.alert(
@@ -94,11 +110,19 @@ export function MisPlantillasScreen() {
             Creada el {new Date(item.creado_en).toLocaleDateString()}
           </Text>
         </View>
-        {item.es_global && (
-          <View style={[styles.globalBadge, { backgroundColor: isDark ? "#064e3b" : "#d1fae5" }]}>
-            <Text style={[styles.globalBadgeText, { color: isDark ? "#34d399" : "#059669" }]}>Global</Text>
-          </View>
-        )}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity 
+            onPress={() => handleVerEstructura(item.plantilla_id)}
+            style={{ padding: 4, backgroundColor: `${colors.primary}15`, borderRadius: 12 }}
+          >
+            <Ionicons name="eye-outline" size={18} color={colors.primary} />
+          </TouchableOpacity>
+          {item.es_global && (
+            <View style={[styles.globalBadge, { backgroundColor: isDark ? "#064e3b" : "#d1fae5" }]}>
+              <Text style={[styles.globalBadgeText, { color: isDark ? "#34d399" : "#059669" }]}>Global</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {item.descripcion ? (
@@ -112,17 +136,20 @@ export function MisPlantillasScreen() {
           style={[styles.actionBtn, { backgroundColor: isDark ? "#1e293b" : "#f1f5f9" }]}
           onPress={() => router.push({ pathname: "/nueva-plantilla", params: { editId: item.plantilla_id } } as any)}
         >
-          <Ionicons name="create-outline" size={18} color={colors.text} />
-          <Text style={[styles.actionBtnText, { color: colors.text }]}>Editar</Text>
+          <Text style={[styles.actionBtnText, { color: colors.text }]}>
+            {item.terapeuta_id === sessionUid ? "Editar" : "Ver / Clonar"}
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: isDark ? "#450a0a" : "#fef2f2" }]}
-          onPress={() => handleEliminar(item.plantilla_id, item.nombre)}
-        >
-          <Ionicons name="trash-outline" size={18} color="#ef4444" />
-          <Text style={[styles.actionBtnText, { color: "#ef4444" }]}>Eliminar</Text>
-        </TouchableOpacity>
+        {item.terapeuta_id === sessionUid && (
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: isDark ? "#450a0a" : "#fef2f2" }]}
+            onPress={() => handleEliminar(item.plantilla_id, item.nombre)}
+          >
+            <Ionicons name="trash-outline" size={18} color="#ef4444" />
+            <Text style={[styles.actionBtnText, { color: "#ef4444" }]}>Eliminar</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -194,6 +221,62 @@ export function MisPlantillasScreen() {
           }
         />
       )}
+
+      {/* MODAL DE ESTRUCTURA DE PLANTILLA (REUTILIZADO) */}
+      <Modal visible={modalEstructuraVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff", maxHeight: "80%" }]}>
+            <View style={styles.modalHeaderModal}>
+              <View>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Resumen de Estructura</Text>
+                <Text style={{ color: colors.primary, fontWeight: "600", fontSize: 13, marginTop: 2 }}>
+                  {estructuraData?.nombre || "Cargando..."}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setModalEstructuraVisible(false)} style={{ padding: 4 }}>
+                <Ionicons name="close-circle" size={28} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {loadingEstructura ? (
+              <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 30 }} />
+            ) : (
+              <ScrollView style={{ marginTop: 10 }} showsVerticalScrollIndicator={false}>
+                {estructuraData?.secciones.length === 0 ? (
+                  <Text style={{ color: colors.textSecondary, fontStyle: "italic", textAlign: "center", paddingVertical: 20 }}>
+                    Esta plantilla no tiene secciones definidas aún.
+                  </Text>
+                ) : (
+                  estructuraData?.secciones.map((sec) => (
+                    <View key={sec.seccion_id} style={{ marginBottom: 20 }}>
+                      <Text style={[styles.seccionTitle, { color: colors.text, borderBottomColor: isDark ? "#ffffff20" : "#e2e8f0" }]}>
+                        {sec.nombre}
+                      </Text>
+                      {sec.descripcion ? <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 8 }}>{sec.descripcion}</Text> : null}
+                      
+                      <View style={{ paddingLeft: 12 }}>
+                        {sec.campos.length === 0 ? (
+                          <Text style={{ color: colors.textSecondary, fontStyle: "italic", fontSize: 13 }}>No hay campos en esta sección.</Text>
+                        ) : (
+                          sec.campos.map((campo) => (
+                            <View key={campo.campo_id} style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary, marginRight: 8 }} />
+                              <Text style={{ fontSize: 14, color: colors.text, flex: 1 }}>
+                                {campo.etiqueta} <Text style={{ color: colors.textSecondary, fontSize: 12 }}>({campo.tipo})</Text>
+                              </Text>
+                              {campo.requerido && <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "bold" }}>*</Text>}
+                            </View>
+                          ))
+                        )}
+                      </View>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -274,6 +357,13 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
   emptyText: { fontSize: 16, textAlign: "center", marginTop: 15, maxWidth: "80%", lineHeight: 22 },
+
+  // Estilos Modal Preview
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 },
+  modalHeaderModal: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15 },
+  modalTitle: { fontSize: 18, fontWeight: "700" },
+  seccionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8, borderBottomWidth: 1, paddingBottom: 6 },
 });
 
 // Importación dummy para evitar errores si no existe

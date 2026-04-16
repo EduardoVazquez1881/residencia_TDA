@@ -5,7 +5,7 @@ import { PrimaryButton } from "@/components/ui/primary-button";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { getCurrentSession } from "@/services/auth.service";
-import { crearBitacoraCompleta } from "@/services/bitacoras.service";
+import { crearBitacoraCompleta, getBitacoraConRespuestas, actualizarBitacoraCompleta } from "@/services/bitacoras.service";
 import { getCasoDetalle, CasoDetalleData } from "@/services/casos.service";
 import { getPlantillaEstructura, PlantillaEstructura } from "@/services/plantillas.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -26,9 +26,10 @@ import {
 } from "react-native";
 
 export function NuevaBitacoraScreen() {
-  const { casoId, plantillaId } = useLocalSearchParams();
+  const { casoId, plantillaId, editId } = useLocalSearchParams();
   const cid = parseInt(casoId as string, 10);
   const pid = parseInt(plantillaId as string, 10);
+  const bid = editId ? parseInt(editId as string, 10) : null;
 
   const colorScheme = useColorScheme() || "light";
   const colors = Colors[colorScheme as "light" | "dark"];
@@ -63,6 +64,38 @@ export function NuevaBitacoraScreen() {
         ]);
         setCaso(cData);
         setPlantilla(pData);
+
+        // Si es edición, cargar datos guardados
+        if (bid) {
+          const bitData = await getBitacoraConRespuestas(bid);
+          if (bitData) {
+            // Sincronizar estados base
+            if (bitData.fecha) {
+              const [y, m, d] = bitData.fecha.split('-').map(Number);
+              setFecha(new Date(y, m - 1, d));
+            }
+            if (bitData.hora_entrada) {
+              const d = new Date();
+              const [h, min] = bitData.hora_entrada.split(':').map(Number);
+              d.setHours(h, min, 0);
+              setHoraEntrada(d);
+            }
+            if (bitData.hora_salida) {
+              const d = new Date();
+              const [h, min] = bitData.hora_salida.split(':').map(Number);
+              d.setHours(h, min, 0);
+              setHoraSalida(d);
+            }
+            setContexto(bitData.contexto || "");
+            
+            // Sincronizar respuestas dinámicas
+            const hashResp: Record<number, string> = {};
+            bitData.respuestas.forEach((r: any) => {
+              hashResp[r.campo_id] = r.valor;
+            });
+            setRespuestas(hashResp);
+          }
+        }
       } catch (err) {
         console.error("Error loading for bitacora:", err);
       } finally {
@@ -71,7 +104,7 @@ export function NuevaBitacoraScreen() {
       }
     };
     if (cid && pid) fetchData();
-  }, [cid, pid, fadeAnim]);
+  }, [cid, pid, bid, fadeAnim]);
 
   const updateRespuesta = (campoId: number, valor: string) => {
     setRespuestas(prev => ({ ...prev, [campoId]: valor }));
@@ -122,14 +155,19 @@ export function NuevaBitacoraScreen() {
       contexto: contexto.trim() || undefined,
     };
 
-    const res = await crearBitacoraCompleta(payload, respuestas);
+    let res;
+    if (bid) {
+      res = await actualizarBitacoraCompleta(bid, payload, respuestas);
+    } else {
+      res = await crearBitacoraCompleta(payload, respuestas);
+    }
     setSaving(false);
 
     if (res.error) {
       Alert.alert("Error guardando", res.error);
     } else {
-      Alert.alert("Éxito", "Bitácora creada y registrada exitosamente.", [
-        { text: "Entendido", onPress: () => router.navigate("/prueba" as any) }
+      Alert.alert("Éxito", bid ? "Cambios guardados correctamente." : "Bitácora creada y registrada exitosamente.", [
+        { text: "Entendido", onPress: () => router.navigate(bid ? "/reportes" : "/prueba" as any) }
       ]);
     }
   };
@@ -193,7 +231,7 @@ export function NuevaBitacoraScreen() {
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: isDark ? colors.backgroundSecondary : "#f0f4f8" }]}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Registrar Bitácora</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{bid ? "Modificar Bitácora" : "Registrar Bitácora"}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -308,7 +346,7 @@ export function NuevaBitacoraScreen() {
           ))}
         </View>
 
-        <PrimaryButton title="Guardar Bitácora" onPress={handleGuardar} loading={saving} />
+        <PrimaryButton title={bid ? "Guardar Cambios" : "Guardar Bitácora"} onPress={handleGuardar} loading={saving} />
         <View style={{ height: 60 }} />
 
       </Animated.ScrollView>

@@ -717,7 +717,7 @@ export function HomeScreen() {
               activeOpacity={0.7}
               onPress={() => {
                 if (tab.name === "Perfil") router.push("/perfil" as any);
-                else if (tab.name === "Reportes") router.push("/expedientes" as any);
+                else if (tab.name === "Reportes") router.push("/reportes" as any);
                 else if (tab.name === "Agenda") Alert.alert("Próximamente", "La agenda estará disponible muy pronto.");
               }}
             >

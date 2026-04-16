@@ -263,10 +263,16 @@ export function CasoDetailsScreen() {
              </View>
           ) : (
              <View>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Plantilla Asignada:</Text>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>{caso.plantillas?.nombre || "Sin plantilla específica"}</Text>
+                <View style={[styles.infoRow, { justifyContent: 'flex-start' }]}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary, marginRight: 12 }]}>Plantilla Asignada:</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                    <Text 
+                      style={[styles.infoValue, { color: colors.text, flex: 1, textAlign: "right" }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {caso.plantillas?.nombre || "Sin plantilla específica"}
+                    </Text>
                     {caso.plantilla_id && (
                       <TouchableOpacity onPress={handleVerEstructura} style={{ marginLeft: 8, padding: 4, backgroundColor: `${colors.primary}15`, borderRadius: 12 }}>
                         <Ionicons name="eye-outline" size={18} color={colors.primary} />
@@ -372,7 +378,15 @@ export function CasoDetailsScreen() {
                   }}
                   style={[styles.modalItem, plantillaId === p.plantilla_id && { backgroundColor: `${colors.primary}15` }]}
                 >
-                  <Text style={{ color: plantillaId === p.plantilla_id ? colors.primary : colors.text, fontWeight: plantillaId === p.plantilla_id ? "bold" : "500", fontSize: 15 }}>
+                  <Text 
+                    style={{ 
+                      color: plantillaId === p.plantilla_id ? colors.primary : colors.text, 
+                      fontWeight: plantillaId === p.plantilla_id ? "bold" : "500", 
+                      fontSize: 15,
+                      flex: 1,
+                      marginRight: 10
+                    }}
+                  >
                     {p.nombre}
                   </Text>
                   {plantillaId === p.plantilla_id && <Ionicons name="checkmark" size={20} color={colors.primary} />}

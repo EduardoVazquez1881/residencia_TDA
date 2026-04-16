@@ -99,3 +99,109 @@ export async function getCasosListosParaBitacora(uid: string) {
 
   return uniqueCasos;
 }
+
+// ─── Historial de Bitácoras ─────────────────────────────────────────────────────
+export interface HistorialBitacoraData {
+  bitacora_id: number;
+  caso_id: number;
+  plantilla_id: number;
+  fecha: string;
+  hora_entrada: string | null;
+  hora_salida: string | null;
+  estado: string;
+  creado_por: string;
+  casos: {
+    alumnos: {
+      pseudonimo: string;
+    };
+  };
+  plantillas: {
+    nombre: string;
+  };
+}
+
+export async function getHistorialBitacoras(uid: string): Promise<HistorialBitacoraData[]> {
+  const { data, error } = await supabase
+    .from("bitacoras")
+    .select(`
+      bitacora_id, caso_id, plantilla_id, fecha, hora_entrada, hora_salida, estado, creado_por,
+      casos ( alumnos ( pseudonimo ) ),
+      plantillas ( nombre )
+    `)
+    .or(`creado_por.eq.${uid},sombra_id.eq.${uid}`)
+    .order("fecha", { ascending: false })
+    .order("bitacora_id", { ascending: false });
+
+  if (error || !data) {
+    console.error("Error fetching historial:", error);
+    return [];
+  }
+  return data as any as HistorialBitacoraData[];
+}
+
+// ─── Obtener una sola para edición ──────────────────────────────────────────────
+export async function getBitacoraConRespuestas(bitacoraId: number) {
+  const { data: bitacora, error: bitError } = await supabase
+    .from("bitacoras")
+    .select("*")
+    .eq("bitacora_id", bitacoraId)
+    .single();
+
+  if (bitError || !bitacora) return null;
+
+  const { data: respuestas, error: respError } = await supabase
+    .from("bitacora_respuestas")
+    .select("campo_id, valor")
+    .eq("bitacora_id", bitacoraId);
+
+  return {
+    ...bitacora,
+    respuestas: respuestas || []
+  };
+}
+
+// ─── Actualizar Bitácora ────────────────────────────────────────────────────────
+export async function actualizarBitacoraCompleta(
+  bitacoraId: number,
+  payload: Partial<BitacoraPayload>,
+  respuestas: Record<number, string>
+): Promise<{ error: string | null }> {
+  // 1. Actualizar campos base
+  const { error: bitError } = await supabase
+    .from("bitacoras")
+    .update({
+      fecha: payload.fecha,
+      hora_entrada: payload.hora_entrada,
+      hora_salida: payload.hora_salida,
+      contexto: payload.contexto,
+      estado: "completado" // Al editar se asume que se quiere finalizar o mantener activo
+    })
+    .eq("bitacora_id", bitacoraId);
+
+  if (bitError) return { error: bitError.message };
+
+  // 2. Actualizar respuestas: Método sencillo: Borrar las actuales e insertar las nuevas
+  // (Esto evita conflictos de IDs y asegura que solo queden las enviadas)
+  const { error: delError } = await supabase
+    .from("bitacora_respuestas")
+    .delete()
+    .eq("bitacora_id", bitacoraId);
+
+  if (delError) return { error: delError.message };
+
+  const respuestasArray = Object.entries(respuestas).map(([campoIdStr, valor]) => ({
+    bitacora_id: bitacoraId,
+    campo_id: parseInt(campoIdStr, 10),
+    valor: valor || "",
+  }));
+
+  if (respuestasArray.length > 0) {
+    const { error: insError } = await supabase
+      .from("bitacora_respuestas")
+      .insert(respuestasArray);
+
+    if (insError) return { error: insError.message };
+  }
+
+  return { error: null };
+}

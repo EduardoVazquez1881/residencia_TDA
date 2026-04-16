@@ -29,6 +29,7 @@ const ROLES = [
 export const DataUsrScreen = () => {
   const colorScheme = useColorScheme() || "light";
   const colors = Colors[colorScheme as "light" | "dark"];
+  const isDark = colorScheme === "dark";
   const { email } = useLocalSearchParams<{ email: string }>();
 
   const [nombres, setNombres] = useState("");
@@ -36,37 +37,27 @@ export const DataUsrScreen = () => {
   const [rolId, setRolId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Animación de entrada
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(24)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
     ]).start();
   }, [fadeAnim, slideAnim]);
 
   const handleSave = async () => {
-    if (!nombres.trim()) {
-      Alert.alert("Campo requerido", "Por favor ingresa tus nombres");
-      return;
-    }
-    if (!apellidos.trim()) {
-      Alert.alert("Campo requerido", "Por favor ingresa tus apellidos");
-      return;
-    }
-    if (!rolId) {
-      Alert.alert("Campo requerido", "Por favor selecciona tu rol");
+    if (!nombres.trim() || !apellidos.trim() || !rolId) {
+      Alert.alert("Campos incompletos", "Por favor completa toda la información para continuar.");
       return;
     }
 
     setLoading(true);
     try {
       const session = await getCurrentSession();
-
       if (!session) {
-        Alert.alert("Error", "No se pudo obtener la sesión. Inicia sesión nuevamente.");
+        Alert.alert("Error", "No hay una sesión activa. Intenta entrar de nuevo.");
         return;
       }
 
@@ -75,6 +66,7 @@ export const DataUsrScreen = () => {
         nombres: nombres.trim(),
         apellidos: apellidos.trim(),
         rol_id: rolId,
+        correo: email || session.user.email,
       });
 
       if (result.error) {
@@ -83,7 +75,7 @@ export const DataUsrScreen = () => {
         router.replace("/prueba");
       }
     } catch {
-      Alert.alert("Error", "Ocurrió un error al guardar los datos");
+      Alert.alert("Error", "No se pudieron guardar los datos.");
     } finally {
       setLoading(false);
     }
@@ -101,264 +93,135 @@ export const DataUsrScreen = () => {
       <Animated.ScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          justifyContent: "center",
-          paddingHorizontal: 24,
-          paddingVertical: 40,
+          paddingHorizontal: 28,
+          paddingTop: 80,
+          paddingBottom: 40,
         }}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
         style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
       >
-        {/* ── Header ── */}
-        <View style={{ alignItems: "center", marginBottom: 36 }}>
-          <View
-            style={{
-              backgroundColor: colors.primary,
-              width: 80,
-              height: 80,
-              borderRadius: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: 20,
-              shadowColor: colors.primary,
-              shadowOpacity: 0.4,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 8,
-            }}
-          >
-            <Ionicons name="person-add-outline" size={36} color="#fff" />
-          </View>
-
-          <Text
-            style={{
-              fontSize: 28,
-              fontWeight: "800",
-              color: colors.text,
-              textAlign: "center",
-              letterSpacing: -0.5,
-              marginBottom: 8,
-            }}
-          >
-            Completa tu perfil
-          </Text>
-          <Text
-            style={{
-              fontSize: 14,
-              color: colors.textSecondary,
-              textAlign: "center",
-              lineHeight: 20,
-            }}
-          >
-            Ingresa tus datos para finalizar el registro
-          </Text>
-
-          {/* Badge del email */}
-          {email ? (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                marginTop: 14,
-                backgroundColor:
-                  colorScheme === "dark" ? colors.backgroundSecondary : "#f0f9ff",
-                borderColor: colors.primary,
-                borderWidth: 1.5,
-                borderRadius: 24,
-                paddingHorizontal: 14,
-                paddingVertical: 6,
-              }}
-            >
-              <Ionicons name="at-outline" size={14} color={colors.primary} />
-              <Text
-                style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}
-                numberOfLines={1}
-              >
-                {email}
-              </Text>
-            </View>
-          ) : null}
+        {/* HEADER MINIMALISTA */}
+        <View style={{ marginBottom: 40 }}>
+           <Text style={{ fontSize: 32, fontWeight: "800", color: colors.text, letterSpacing: -1 }}>
+             Hola,
+           </Text>
+           <Text style={{ fontSize: 18, color: colors.textSecondary, marginTop: 4, fontWeight: "500" }}>
+             Cuentanos un poco sobre ti
+           </Text>
+           
+           {email && (
+             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 12, opacity: 0.8 }}>
+               <Ionicons name="mail-outline" size={14} color={colors.textSecondary} />
+               <Text style={{ fontSize: 12, color: colors.textSecondary, marginLeft: 6, fontWeight: "600" }}>{email}</Text>
+             </View>
+           )}
         </View>
 
-        {/* ── Formulario ── */}
-        <View
-          style={{
-            backgroundColor:
-              colorScheme === "dark" ? colors.backgroundSecondary : "#f9fafb",
-            borderRadius: 24,
-            padding: 24,
-            marginBottom: 24,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          {/* Nombres */}
-          <View style={{ marginBottom: 20 }}>
-            <FormLabel label="Nombres" required />
+        {/* INPUTS DE TEXTO */}
+        <View style={{ gap: 24, marginBottom: 32 }}>
+          <View>
+            <FormLabel label="Nombres" />
             <FormInput
-              placeholder="Ej. Juan Carlos"
+              placeholder="Ej. Sofia"
               value={nombres}
               onChangeText={setNombres}
               icon="person-outline"
               autoCapitalize="words"
-              editable={!loading}
             />
           </View>
 
-          {/* Apellidos */}
-          <View style={{ marginBottom: 20 }}>
-            <FormLabel label="Apellidos" required />
+          <View>
+            <FormLabel label="Apellidos" />
             <FormInput
-              placeholder="Ej. García López"
+              placeholder="Ej. Valenzuela"
               value={apellidos}
               onChangeText={setApellidos}
               icon="people-outline"
               autoCapitalize="words"
-              editable={!loading}
             />
           </View>
+        </View>
 
-          {/* Selector de Rol */}
-          <View>
-            <FormLabel label="Rol" required helperText="Selecciona el rol que mejor describe tu función" />
-            <View style={{ gap: 10 }}>
-              {ROLES.map((rol) => {
-                const selected = rolId === rol.id;
-                return (
-                  <TouchableOpacity
-                    key={rol.id}
-                    onPress={() => setRolId(rol.id)}
-                    activeOpacity={0.75}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 14,
-                      backgroundColor: selected
-                        ? colorScheme === "dark"
-                          ? `${colors.primary}22`
-                          : "#e0f2fe"
-                        : colors.input,
-                      borderRadius: 14,
-                      borderWidth: 1.5,
-                      borderColor: selected ? colors.primary : colors.inputBorder,
-                      paddingHorizontal: 16,
-                      paddingVertical: 14,
-                    }}
-                  >
-                    {/* Ícono del rol */}
-                    <View
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 19,
-                        backgroundColor: selected ? colors.primary : colors.inputBorder,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Ionicons name={rol.icon} size={18} color="#fff" />
-                    </View>
-
-                    <Text
-                      style={{
-                        flex: 1,
-                        fontSize: 15,
-                        fontWeight: selected ? "700" : "500",
-                        color: selected ? colors.primary : colors.text,
-                      }}
-                    >
-                      {rol.label}
-                    </Text>
-
-                    {selected && (
-                      <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+        {/* SELECTOR DE ROL MINIMALISTA */}
+        <View style={{ marginBottom: 40 }}>
+          <FormLabel label="Selecciona tu función" helperText="Esto define tus permisos en el sistema" />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
+            {ROLES.map((rol) => {
+              const selected = rolId === rol.id;
+              return (
+                <TouchableOpacity
+                  key={rol.id}
+                  onPress={() => setRolId(rol.id)}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    backgroundColor: selected ? colors.primary : (isDark ? "#ffffff08" : "#f1f5f9"),
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderRadius: 16,
+                    borderWidth: 1.5,
+                    borderColor: selected ? colors.primary : "transparent",
+                  }}
+                >
+                  <Ionicons name={rol.icon} size={18} color={selected ? "#fff" : colors.textSecondary} />
+                  <Text style={{ 
+                    fontSize: 14, 
+                    fontWeight: "700", 
+                    color: selected ? "#fff" : colors.text 
+                  }}>
+                    {rol.label}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
           </View>
         </View>
 
-        {/* ── Botón guardar ── */}
         <PrimaryButton
-          title="Guardar y continuar"
+          title="Completar Perfil"
           loading={loading}
-          disabled={loading || !isComplete}
+          disabled={!isComplete}
           onPress={handleSave}
-          icon={
-            !loading && isComplete ? (
-              <Ionicons name="arrow-forward-circle-outline" size={20} color="white" />
-            ) : undefined
-          }
         />
 
-        {/* ── Indicador de progreso ── */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: 6,
-            marginTop: 28,
-          }}
-        >
-          {["Cuenta", "Verificación", "Perfil"].map((step, i) => {
-            const active = i === 2;
-            const done = i < 2;
-            return (
-              <React.Fragment key={step}>
-                <View style={{ alignItems: "center", gap: 4 }}>
-                  <View
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 14,
-                      backgroundColor: done || active ? colors.primary : colors.inputBorder,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {done ? (
-                      <Ionicons name="checkmark" size={14} color="#fff" />
-                    ) : (
-                      <Text
-                        style={{
-                          color: active ? "#fff" : colors.textSecondary,
-                          fontSize: 11,
-                          fontWeight: "700",
-                        }}
-                      >
-                        {i + 1}
-                      </Text>
-                    )}
-                  </View>
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      color: active ? colors.primary : colors.textSecondary,
-                      fontWeight: active ? "700" : "400",
-                    }}
-                  >
-                    {step}
-                  </Text>
-                </View>
-                {i < 2 && (
-                  <View
-                    style={{
-                      width: 32,
-                      height: 2,
-                      backgroundColor: done ? colors.primary : colors.inputBorder,
-                      borderRadius: 1,
-                      marginBottom: 14,
-                    }}
-                  />
+        {/* INDICADOR DE PASOS MAS FINO */}
+        <View style={{ 
+          flexDirection: "row", 
+          justifyContent: "center", 
+          alignItems: "center", 
+          marginTop: 40,
+          opacity: 0.6
+        }}>
+          {[1, 2, 3].map((step, i) => (
+            <React.Fragment key={step}>
+              <View style={{
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                backgroundColor: i === 2 ? colors.primary : (i < 2 ? colors.primary : colors.border),
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+                {i < 2 ? (
+                  <Ionicons name="checkmark" size={14} color="#fff" />
+                ) : (
+                  <Text style={{ color: i === 2 ? "#fff" : colors.textSecondary, fontSize: 11, fontWeight: "bold" }}>{step}</Text>
                 )}
-              </React.Fragment>
-            );
-          })}
+              </View>
+              {i < 2 && (
+                <View style={{ 
+                  width: 30, 
+                  height: 1.5, 
+                  backgroundColor: colors.primary, 
+                  marginHorizontal: 4 
+                }} />
+              )}
+            </React.Fragment>
+          ))}
         </View>
+
       </Animated.ScrollView>
     </KeyboardAvoidingView>
   );
