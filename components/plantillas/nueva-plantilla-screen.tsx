@@ -11,15 +11,20 @@ import {
   WizardCampo,
   WizardOpcion,
   WizardSeccion,
+  WizardPlantillaPayload,
+  actualizarPlantillaCompleta,
   crearPlantillaCompleta,
+  getPlantillaEstructura,
   generarClave,
 } from "@/services/plantillas.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Stack, router } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -53,6 +58,8 @@ function getTipoInfo(tipo: string) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export function NuevaPlantillaScreen() {
+  const { editId } = useLocalSearchParams();
+  const isEditing = !!editId;
   const colorScheme = useColorScheme() || "light";
   const colors = Colors[colorScheme as "light" | "dark"];
   const isDark = colorScheme === "dark";
@@ -69,6 +76,20 @@ export function NuevaPlantillaScreen() {
   const [descripcion, setDescripcion] = useState("");
   const [esGlobal, setEsGlobal] = useState(false);
   const [alumnoId, setAlumnoId] = useState<number | null>(null);
+  const [showAlumnoModal, setShowAlumnoModal] = useState(false);
+  const [alumnoSearchQuery, setAlumnoSearchQuery] = useState("");
+
+  const filteredAlumnos = useMemo(() => {
+    if (!alumnoSearchQuery.trim()) return alumnosList;
+    return alumnosList.filter((a) =>
+      a.pseudonimo.toLowerCase().includes(alumnoSearchQuery.toLowerCase())
+    );
+  }, [alumnosList, alumnoSearchQuery]);
+
+  const selectedAlumno = useMemo(
+    () => alumnosList.find((a) => a.alumno_id === alumnoId),
+    [alumnosList, alumnoId]
+  );
 
   // ── Step 2 — secciones ──
   const [secciones, setSecciones] = useState<WizardSeccion[]>([]);
@@ -86,10 +107,59 @@ export function NuevaPlantillaScreen() {
   const [newCampoOpciones, setNewCampoOpciones] = useState<WizardOpcion[]>([]);
   const [newOpcionEtiqueta, setNewOpcionEtiqueta] = useState("");
 
-  // ── Saving ──
+  // Saving
   const [saving, setSaving] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(isEditing);
 
   const scrollRef = useRef<ScrollView>(null);
+
+  // Iniciar edición
+  useEffect(() => {
+    if (isEditing) {
+      const load = async () => {
+        try {
+          const struct = await getPlantillaEstructura(parseInt(editId as string, 10));
+          if (struct) {
+            setNombre(struct.nombre);
+            setDescripcion(struct.descripcion || "");
+            setEsGlobal(struct.es_global);
+            setAlumnoId(struct.alumno_id);
+            
+            // Mapear secciones y campos a formato wizard local
+            const mapped: WizardSeccion[] = struct.secciones.map(sec => ({
+              localId: Math.random().toString(),
+              nombre: sec.nombre,
+              descripcion: sec.descripcion || "",
+              orden: sec.orden,
+              campos: sec.campos.map(cam => ({
+                localId: Math.random().toString(),
+                clave: cam.clave,
+                etiqueta: cam.etiqueta,
+                tipo: cam.tipo,
+                requerido: cam.requerido,
+                placeholder: (cam as any).placeholder || "", 
+                ayuda: (cam as any).ayuda || "",
+                orden: cam.orden,
+                opciones: (cam as any).campo_opciones?.map((op: any) => ({
+                  localId: Math.random().toString(),
+                  etiqueta: op.etiqueta,
+                  valor: op.valor,
+                  orden: op.orden
+                })) || []
+              }))
+            }));
+            setSecciones(mapped);
+          }
+        } catch (err) {
+          console.error("Error loading for edit:", err);
+          Alert.alert("Error", "No se pudo cargar la plantilla.");
+        } finally {
+          setLoadingEdit(false);
+        }
+      };
+      load();
+    }
+  }, [editId]);
 
   // Totales
   const totalCampos = useMemo(
@@ -233,32 +303,41 @@ export function NuevaPlantillaScreen() {
   const handleSave = async () => {
     if (!sessionUid) return;
     setSaving(true);
+
+    const payload: WizardPlantillaPayload = {
+      terapeuta_id: sessionUid,
+      alumno_id: esGlobal ? null : alumnoId,
+      nombre: nombre.trim(),
+      descripcion: descripcion.trim(),
+      es_global: esGlobal,
+      secciones: secciones.map((s, i) => ({ ...s, orden: i + 1 })),
+    };
+
     try {
-      const result = await crearPlantillaCompleta({
-        terapeuta_id: sessionUid,
-        alumno_id: esGlobal ? null : alumnoId,
-        nombre: nombre.trim(),
-        descripcion: descripcion.trim(),
-        es_global: esGlobal,
-        secciones: secciones.map((s, si) => ({
-          ...s,
-          orden: si,
-          campos: s.campos.map((c, ci) => ({ ...c, orden: ci })),
-        })),
-      });
-      if (result.error) {
-        Alert.alert("Error al guardar", result.error);
-        return;
+      let result;
+      if (isEditing) {
+        result = await actualizarPlantillaCompleta(parseInt(editId as string, 10), payload);
+      } else {
+        result = await crearPlantillaCompleta(payload);
       }
-      Alert.alert(
-        "¡Plantilla creada!",
-        `La plantilla "${nombre.trim()}" fue creada exitosamente.`,
-        [{ text: "Aceptar", onPress: () => router.replace("/prueba" as any) }],
-      );
-    } catch {
-      Alert.alert("Error", "No se pudo crear la plantilla. Intenta de nuevo.");
-    } finally {
+
       setSaving(false);
+
+      if (result.error) {
+        Alert.alert("Error guardando", result.error);
+      } else {
+        Alert.alert(
+          "Éxito", 
+          isEditing ? "Plantilla actualizada correctamente." : "Plantilla creada correctamente.", 
+          [
+            { text: "Entendido", onPress: () => router.replace("/prueba" as any) }
+          ]
+        );
+      }
+    } catch (err) {
+      console.error("Error saving plantilla:", err);
+      setSaving(false);
+      Alert.alert("Error", "Ocurrió un error inesperado al guardar.");
     }
   };
 
@@ -357,89 +436,63 @@ export function NuevaPlantillaScreen() {
                 </Text>
               </View>
             ) : (
-              <View style={{ gap: 8 }}>
-                {alumnosList.map((alumno) => {
-                  const sel = alumnoId === alumno.alumno_id;
-                  return (
-                    <TouchableOpacity
-                      key={alumno.alumno_id}
-                      onPress={() => setAlumnoId(alumno.alumno_id)}
-                      activeOpacity={0.75}
-                      style={[
-                        styles.alumnoOption,
-                        {
-                          backgroundColor: sel
-                            ? isDark
-                              ? `${colors.primary}22`
-                              : "#e0f2fe"
-                            : colors.input,
-                          borderColor: sel ? colors.primary : "transparent",
-                        },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.alumnoAvatar,
-                          { backgroundColor: `${colors.primary}1a` },
-                        ]}
-                      >
-                        <Text style={[styles.alumnoInicial, { color: colors.primary }]}>
-                          {alumno.pseudonimo.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <Text
-                        style={[
-                          styles.alumnoNombre,
-                          { color: sel ? colors.primary : colors.text },
-                        ]}
-                      >
-                        {alumno.pseudonimo}
-                      </Text>
-                      {alumno.nivel_tea ? (
-                        <Text
-                          style={[styles.alumnoNivel, { color: colors.textSecondary }]}
-                        >
-                          N{alumno.nivel_tea}
-                        </Text>
-                      ) : null}
-                      {sel && (
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={20}
-                          color={colors.primary}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-                <TouchableOpacity
-                  onPress={() => setAlumnoId(null)}
-                  activeOpacity={0.75}
+              <TouchableOpacity
+                onPress={() => setShowAlumnoModal(true)}
+                activeOpacity={0.7}
+                style={[
+                  styles.selectorBtn,
+                  {
+                    backgroundColor: isDark ? colors.input : "#f8fafc",
+                    borderColor: colors.inputBorder,
+                  },
+                ]}
+              >
+                <View
                   style={[
-                    styles.alumnoOption,
-                    {
-                      backgroundColor: alumnoId === null
-                        ? isDark
-                          ? `${colors.primary}22`
-                          : "#e0f2fe"
-                        : colors.input,
-                      borderColor: alumnoId === null ? colors.primary : "transparent",
-                      marginTop: 4
-                    },
+                    styles.alumnoAvatar,
+                    { backgroundColor: `${colors.primary}15` },
                   ]}
                 >
-                  <View style={[styles.alumnoAvatar, { backgroundColor: isDark ? "#374151" : "#e2e8f0" }]}>
-                    <Ionicons name="help-outline" size={18} color={colors.textSecondary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.alumnoNombre, { color: alumnoId === null ? colors.primary : colors.text }]}>
-                      Sin asociar alumno
+                  {selectedAlumno ? (
+                    <Text
+                      style={[styles.alumnoInicial, { color: colors.primary }]}
+                    >
+                      {selectedAlumno.pseudonimo.charAt(0).toUpperCase()}
                     </Text>
-                    <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>Podrás asignarlo después al usar la plantilla</Text>
-                  </View>
-                  {alumnoId === null && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
-                </TouchableOpacity>
-              </View>
+                  ) : (
+                    <Ionicons
+                      name="help-outline"
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  )}
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text
+                    style={[
+                      styles.selectorBtnText,
+                      {
+                        color: selectedAlumno ? colors.text : colors.textSecondary,
+                        fontWeight: selectedAlumno ? "700" : "500",
+                      },
+                    ]}
+                  >
+                    {selectedAlumno ? selectedAlumno.pseudonimo : "Sin asociar alumno"}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                    {selectedAlumno ? (
+                      `Nivel TEA ${selectedAlumno.nivel_tea || 'N/A'}`
+                    ) : (
+                      "Presiona para seleccionar"
+                    )}
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-down-outline"
+                  size={18}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -1047,6 +1100,15 @@ export function NuevaPlantillaScreen() {
   };
 
   // ─── JSX principal ────────────────────────────────────────────────────────
+  if (loadingEdit) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 10, color: colors.textSecondary }}>Cargando plantilla...</Text>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -1097,15 +1159,13 @@ export function NuevaPlantillaScreen() {
               Nueva Plantilla
             </Text>
             <Text style={[styles.wizardSubtitle, { color: colors.textSecondary }]}>
-              Paso {step} de {STEPS.length} —{" "}
-              {
-                [
+              {isEditing ? `Editando: ${nombre}` : `Paso ${step} de ${STEPS.length}`}
+              {step > 1 && !isEditing && ` — ${[
                   "Información básica",
                   "Secciones",
                   "Campos por sección",
                   "Revisión final",
-                ][step - 1]
-              }
+                ][step - 1]}`}
             </Text>
           </View>
         </View>
@@ -1225,7 +1285,7 @@ export function NuevaPlantillaScreen() {
             />
           ) : (
             <PrimaryButton
-              title="Crear Plantilla"
+              title={isEditing ? "Guardar Cambios" : "Crear Plantilla"}
               loading={saving}
               disabled={saving}
               onPress={handleSave}
@@ -1233,6 +1293,191 @@ export function NuevaPlantillaScreen() {
           )}
         </View>
       </View>
+
+      {/* ── Modal Selector de Alumno ── */}
+      <Modal
+        visible={showAlumnoModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAlumnoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Seleccionar Alumno
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowAlumnoModal(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Buscador */}
+            <View
+              style={[
+                styles.searchContainer,
+                { backgroundColor: isDark ? colors.input : "#f1f5f9" },
+              ]}
+            >
+              <Ionicons
+                name="search-outline"
+                size={20}
+                color={colors.textSecondary}
+              />
+              <TextInput
+                placeholder="Buscar por nombre..."
+                placeholderTextColor={colors.textSecondary}
+                value={alumnoSearchQuery}
+                onChangeText={setAlumnoSearchQuery}
+                style={[styles.searchInput, { color: colors.text }]}
+              />
+              {alumnoSearchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setAlumnoSearchQuery("")}>
+                  <Ionicons
+                    name="close-circle"
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
+              {/* Opción Sin Asociar */}
+              <TouchableOpacity
+                onPress={() => {
+                  setAlumnoId(null);
+                  setShowAlumnoModal(false);
+                  setAlumnoSearchQuery("");
+                }}
+                style={[
+                  styles.alumnoOptionModal,
+                  { borderBottomColor: isDark ? "#ffffff08" : "#f1f5f9" },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.alumnoAvatarModal,
+                    { backgroundColor: isDark ? "#374151" : "#e2e8f0" },
+                  ]}
+                >
+                  <Ionicons
+                    name="help-outline"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text
+                    style={[
+                      styles.alumnoNombreModal,
+                      { color: alumnoId === null ? colors.primary : colors.text },
+                    ]}
+                  >
+                    Sin asociar alumno
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                    Utilizar como plantilla genérica
+                  </Text>
+                </View>
+                {alumnoId === null && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={22}
+                    color={colors.primary}
+                  />
+                )}
+              </TouchableOpacity>
+
+              {/* Lista filtrada */}
+              {filteredAlumnos.map((alumno) => {
+                const sel = alumnoId === alumno.alumno_id;
+                return (
+                  <TouchableOpacity
+                    key={alumno.alumno_id}
+                    onPress={() => {
+                      setAlumnoId(alumno.alumno_id);
+                      setShowAlumnoModal(false);
+                      setAlumnoSearchQuery("");
+                    }}
+                    style={[
+                      styles.alumnoOptionModal,
+                      { borderBottomColor: isDark ? "#ffffff08" : "#f1f5f9" },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.alumnoAvatarModal,
+                        { backgroundColor: `${colors.primary}15` },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.alumnoInicialModal,
+                          { color: colors.primary },
+                        ]}
+                      >
+                        {alumno.pseudonimo.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text
+                        style={[
+                          styles.alumnoNombreModal,
+                          { color: sel ? colors.primary : colors.text },
+                        ]}
+                      >
+                        {alumno.pseudonimo}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                        Nivel TEA {alumno.nivel_tea || "N/A"}
+                      </Text>
+                    </View>
+                    {sel && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color={colors.primary}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+
+              {filteredAlumnos.length === 0 && alumnoSearchQuery !== "" && (
+                <View style={{ padding: 40, alignItems: "center" }}>
+                  <Ionicons
+                    name="search-outline"
+                    size={40}
+                    color={colors.textSecondary}
+                    style={{ opacity: 0.3 }}
+                  />
+                  <Text
+                    style={{
+                      color: colors.textSecondary,
+                      marginTop: 10,
+                      textAlign: "center",
+                    }}
+                  >
+                    No se encontraron alumnos con "{alumnoSearchQuery}"
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -1557,4 +1802,75 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
   },
   backStepText: { fontSize: 14, fontWeight: "600" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    height: "85%",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+    justifyContent: "space-between",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginBottom: 15,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 16,
+    paddingVertical: 0,
+  },
+  alumnoOptionModal: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+  },
+  alumnoAvatarModal: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  alumnoInicialModal: {
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  alumnoNombreModal: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  selectorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 8,
+  },
+  selectorBtnText: {
+    fontSize: 15,
+  },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });

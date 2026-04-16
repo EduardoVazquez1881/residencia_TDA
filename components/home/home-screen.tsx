@@ -19,6 +19,7 @@ import { router, Stack } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   RefreshControl,
   StyleSheet,
@@ -714,15 +715,14 @@ export function HomeScreen() {
               key={tab.name}
               style={styles.tabItem}
               activeOpacity={0.7}
+              onPress={() => {
+                if (tab.name === "Perfil") router.push("/perfil" as any);
+                else if (tab.name === "Reportes") router.push("/expedientes" as any);
+                else if (tab.name === "Agenda") Alert.alert("Próximamente", "La agenda estará disponible muy pronto.");
+              }}
             >
               <Ionicons
-                name={
-                  tab.active
-                    ? tab.icon === "home"
-                      ? "home"
-                      : tab.icon
-                    : tab.icon
-                }
+                name={tab.active ? tab.icon.replace("-outline", "") : tab.icon}
                 size={22}
                 color={tab.active ? colors.primary : colors.tabIconDefault}
               />

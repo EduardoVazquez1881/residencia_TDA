@@ -100,27 +100,25 @@ export function SeleccionBitacoraScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        {/* ── Opción 2: Plantilla existente (próximamente) ── */}
-        <View style={[styles.optionCard, cardStyle, { opacity: 0.52 }]}>
+        {/* ── Opción 2: Mis Plantillas ── */}
+        <TouchableOpacity
+          style={[styles.optionCard, cardStyle]}
+          activeOpacity={0.75}
+          onPress={() => router.push("/mis-plantillas" as any)}
+        >
           <View style={[styles.optionIconBox, { backgroundColor: "#8b5cf618" }]}>
             <Ionicons name="documents-outline" size={30} color="#8b5cf6" />
           </View>
           <View style={styles.optionTextBox}>
-            <View style={styles.optionTitleRow}>
-              <Text style={[styles.optionTitle, { color: colors.text }]}>
-                Plantilla Existente
-              </Text>
-              <View style={[styles.soonBadge, { backgroundColor: `${colors.primary}18` }]}>
-                <Text style={[styles.soonBadgeText, { color: colors.primary }]}>
-                  Próximamente
-                </Text>
-              </View>
-            </View>
+            <Text style={[styles.optionTitle, { color: colors.text }]}>
+              Mis Plantillas
+            </Text>
             <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
-              Selecciona una plantilla que ya hayas creado anteriormente
+              Administra tus formatos: visualiza, edita o elimina plantillas creadas por ti
             </Text>
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
       </Animated.ScrollView>
     </View>
   );

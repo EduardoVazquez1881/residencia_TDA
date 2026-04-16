@@ -206,7 +206,8 @@ export async function getPlantillaEstructura(plantillaId: number): Promise<Plant
       plantilla_secciones (
         seccion_id, nombre, descripcion, orden,
         plantilla_campos (
-          campo_id, clave, etiqueta, tipo, requerido, orden
+          campo_id, clave, etiqueta, tipo, requerido, orden,
+          campo_opciones (opcion_id, etiqueta, valor, orden)
         )
       )
     `)
@@ -230,4 +231,89 @@ export async function getPlantillaEstructura(plantillaId: number): Promise<Plant
     ...(data as unknown as PlantillaData),
     secciones
   };
+}
+
+// ─── Desactivar Plantilla (Borrado Lógico) ───────────────────────────────────
+// ─── Actualizar Plantilla (Sincronización) ──────────────────────────────────
+export async function actualizarPlantillaCompleta(
+  plantillaId: number,
+  payload: WizardPlantillaPayload
+): Promise<{ error: string | null }> {
+  // 1. Actualizar cabecera
+  const { error: pErr } = await supabase
+    .from("plantillas")
+    .update({
+      nombre: payload.nombre,
+      descripcion: payload.descripcion || null,
+      alumno_id: payload.alumno_id,
+      es_global: payload.es_global
+    })
+    .eq("plantilla_id", plantillaId);
+
+  if (pErr) return { error: pErr.message };
+
+  // 2. Procesar secciones (Para simplificar en esta fase: borrar y recrear secciones/campos cascada)
+  // NOTA: Esto cambiaría los IDs. Para una app de producción madura se haría un "upsert" por ID.
+  // Pero dado que estamos en desarrollo rápido, vamos a sincronizar por claves o IDs si existen.
+  
+  // Borramos secciones viejas (la DB borrará campos y opciones por CASCADE)
+  await supabase.from("plantilla_secciones").delete().eq("plantilla_id", plantillaId);
+
+  // Reutilizamos la lógica de inserción del crearPlantillaCompleta (pasos 95-161 aprox)
+  // Pero lo hacemo manualmente aquí para no mutar la función original.
+  for (const seccion of payload.secciones) {
+    const { data: secData, error: secErr } = await supabase
+      .from("plantilla_secciones")
+      .insert({
+        plantilla_id: plantillaId,
+        nombre: seccion.nombre,
+        descripcion: seccion.descripcion || null,
+        orden: seccion.orden
+      })
+      .select("seccion_id")
+      .single();
+
+    if (secErr || !secData) return { error: secErr?.message || "Error editando sección" };
+
+    for (const campo of seccion.campos) {
+      const { data: camData, error: camErr } = await supabase
+        .from("plantilla_campos")
+        .insert({
+          seccion_id: secData.seccion_id,
+          clave: campo.clave,
+          etiqueta: campo.etiqueta,
+          tipo: campo.tipo,
+          requerido: campo.requerido,
+          placeholder: campo.placeholder || null,
+          ayuda: campo.ayuda || null,
+          orden: campo.orden
+        })
+        .select("campo_id")
+        .single();
+
+      if (camErr || !camData) return { error: camErr?.message || "Error editando campo" };
+
+      if ((campo.tipo === "radio" || campo.tipo === "select") && campo.opciones.length > 0) {
+        await supabase.from("campo_opciones").insert(
+          campo.opciones.map(op => ({
+            campo_id: camData.campo_id,
+            etiqueta: op.etiqueta,
+            valor: op.valor,
+            orden: op.orden
+          }))
+        );
+      }
+    }
+  }
+
+  return { error: null };
+}
+
+export async function desactivarPlantilla(plantillaId: number): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("plantillas")
+    .update({ activa: false })
+    .eq("plantilla_id", plantillaId);
+
+  return { error: error?.message ?? null };
 }

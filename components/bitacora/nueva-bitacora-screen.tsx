@@ -50,7 +50,7 @@ export function NuevaBitacoraScreen() {
   const [respuestas, setRespuestas] = useState<Record<number, string>>({});
 
   // DateTimePicker modals state
-  const [showPicker, setShowPicker] = useState<"fecha" | "entrada" | "salida" | null>(null);
+  const [showPicker, setShowPicker] = useState<string | number | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -138,8 +138,11 @@ export function NuevaBitacoraScreen() {
     if (Platform.OS === 'android') setShowPicker(null);
     if (selectedDate) {
       if (showPicker === "fecha") setFecha(selectedDate);
-      if (showPicker === "entrada") setHoraEntrada(selectedDate);
-      if (showPicker === "salida") setHoraSalida(selectedDate);
+      else if (showPicker === "entrada") setHoraEntrada(selectedDate);
+      else if (showPicker === "salida") setHoraSalida(selectedDate);
+      else if (typeof showPicker === "number") {
+        updateRespuesta(showPicker, selectedDate.toISOString().split('T')[0]);
+      }
     }
   };
 
@@ -235,21 +238,47 @@ export function NuevaBitacoraScreen() {
                       {campo.requerido && <Text style={{ color: "#ef4444", marginLeft: 4 }}>*</Text>}
                     </View>
 
-                    {campo.tipo === "texto_corto" && (
-                      <FormInput placeholder="Escribe aquí..." value={currentVal} onChangeText={(t) => updateRespuesta(campo.campo_id, t)} />
+                    {campo.tipo === "texto" && (
+                      <FormInput placeholder={campo.placeholder || "Escribe aquí..."} value={currentVal} onChangeText={(t) => updateRespuesta(campo.campo_id, t)} />
                     )}
 
-                    {campo.tipo === "texto_largo" && (
-                      <FormTextArea placeholder="Escribe aquí..." value={currentVal} onChangeText={(t) => updateRespuesta(campo.campo_id, t)} minHeight={80} />
+                    {campo.tipo === "textarea" && (
+                      <FormTextArea placeholder={campo.placeholder || "Escribe aquí..."} value={currentVal} onChangeText={(t) => updateRespuesta(campo.campo_id, t)} minHeight={80} />
                     )}
 
                     {campo.tipo === "numero" && (
-                      <FormInput placeholder="0" value={currentVal} onChangeText={(t) => updateRespuesta(campo.campo_id, t)} keyboardType="numeric" />
+                      <FormInput placeholder={campo.placeholder || "0"} value={currentVal} onChangeText={(t) => updateRespuesta(campo.campo_id, t)} keyboardType="numeric" />
+                    )}
+
+                    {campo.tipo === "fecha" && (
+                      <TouchableOpacity 
+                        onPress={() => setShowPicker(campo.campo_id)}
+                        style={[styles.pickerBtn, { backgroundColor: isDark ? "#ffffff10" : "#f1f5f9", flex: 0, width: "100%" }]}
+                      >
+                        <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                        <Text style={{ color: currentVal ? colors.text : colors.textSecondary, marginLeft: 10 }}>
+                          {currentVal || "Seleccionar fecha"}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {campo.tipo === "checkbox" && (
+                      <TouchableOpacity 
+                        onPress={() => updateRespuesta(campo.campo_id, currentVal === "true" ? "false" : "true")}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 5 }}
+                      >
+                        <Ionicons 
+                          name={currentVal === "true" ? "checkbox" : "square-outline"} 
+                          size={24} 
+                          color={currentVal === "true" ? colors.primary : colors.textSecondary} 
+                        />
+                        <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Marcar casilla</Text>
+                      </TouchableOpacity>
                     )}
 
                     {(campo.tipo === "radio" || campo.tipo === "select") && (
                       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                        {(campo as any).opciones?.map((op: any) => {
+                        {(campo as any).campo_opciones?.map((op: any) => {
                           const isSelected = currentVal === op.valor;
                           return (
                             <TouchableOpacity
@@ -292,13 +321,17 @@ export function NuevaBitacoraScreen() {
                
                <View style={{ paddingHorizontal: 20, marginBottom: 15 }}>
                  <Text style={{ fontSize: 18, fontWeight: "700", textAlign: "center", color: "#333" }}>
-                   {showPicker === "fecha" ? "Seleccionar Fecha" : "Seleccionar Hora"}
+                   {showPicker === "fecha" || typeof showPicker === "number" ? "Seleccionar Fecha" : "Seleccionar Hora"}
                  </Text>
                </View>
 
                <DateTimePicker
-                 value={showPicker === "fecha" ? fecha : (showPicker === "entrada" ? (horaEntrada || new Date()) : (horaSalida || new Date()))}
-                 mode={showPicker === "fecha" ? "date" : "time"}
+                 value={
+                   typeof showPicker === "number" 
+                     ? (respuestas[showPicker] ? new Date(respuestas[showPicker]) : new Date())
+                     : (showPicker === "fecha" ? fecha : (showPicker === "entrada" ? (horaEntrada || new Date()) : (horaSalida || new Date())))
+                 }
+                 mode={showPicker === "fecha" || typeof showPicker === "number" ? "date" : "time"}
                  display="spinner"
                  onChange={onDateChange}
                  textColor="#000"
@@ -315,8 +348,12 @@ export function NuevaBitacoraScreen() {
       
       {showPicker && Platform.OS === "android" && (
          <DateTimePicker
-           value={showPicker === "fecha" ? fecha : (showPicker === "entrada" ? (horaEntrada || new Date()) : (horaSalida || new Date()))}
-           mode={showPicker === "fecha" ? "date" : "time"}
+           value={
+             typeof showPicker === "number" 
+               ? (respuestas[showPicker] ? new Date(respuestas[showPicker]) : new Date())
+               : (showPicker === "fecha" ? fecha : (showPicker === "entrada" ? (horaEntrada || new Date()) : (horaSalida || new Date())))
+           }
+           mode={showPicker === "fecha" || typeof showPicker === "number" ? "date" : "time"}
            display="default"
            onChange={onDateChange}
          />

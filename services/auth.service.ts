@@ -93,3 +93,9 @@ export async function getCurrentSession() {
   if (error || !data.session) return null;
   return data.session;
 }
+
+// ─── Sign Out ─────────────────────────────────────────────────────────────────
+export async function logout(): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.signOut();
+  return { error: error?.message ?? null };
+}
