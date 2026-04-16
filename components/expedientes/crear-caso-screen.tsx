@@ -12,10 +12,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -45,6 +48,7 @@ export function CrearCasoScreen() {
   // Form State
   const [selectedAlumno, setSelectedAlumno] = useState<number | null>(null);
   const [selectedPlantilla, setSelectedPlantilla] = useState<number | null>(null);
+  const [modalPlantillaVisible, setModalPlantillaVisible] = useState(false);
   const [notas, setNotas] = useState("");
   
   // Participantes State
@@ -335,28 +339,24 @@ export function CrearCasoScreen() {
              {plantillas.length === 0 ? (
                 <Text style={{ color: colors.textSecondary }}>No hay plantillas disponibles.</Text>
              ) : (
-                <View style={styles.selectionGridCol}>
-                  {plantillas.map(p => {
-                    const selected = selectedPlantilla === p.plantilla_id;
-                    return (
-                      <TouchableOpacity
-                        key={p.plantilla_id}
-                        onPress={() => setSelectedPlantilla(selected ? null : p.plantilla_id)}
-                        style={[
-                          styles.selectionItemCol,
-                          {
-                            backgroundColor: selected ? `#10b98120` : (isDark ? colors.background : "#f8fafc"),
-                            borderColor: selected ? "#10b981" : "transparent",
-                            borderWidth: 1,
-                          }
-                        ]}
-                      >
-                        <Text style={{ color: selected ? "#10b981" : colors.text, fontWeight: selected ? "bold" : "500" }}>{p.nombre}</Text>
-                        {p.es_global && <Text style={{ color: colors.textSecondary, fontSize: 10 }}>Global</Text>}
-                      </TouchableOpacity>
-                    )
-                  })}
-                </View>
+                <TouchableOpacity
+                  onPress={() => setModalPlantillaVisible(true)}
+                  style={[
+                    styles.selectionItemCol,
+                    {
+                      backgroundColor: isDark ? "#ffffff08" : "#f1f5f9",
+                      borderColor: selectedPlantilla ? "#10b981" : "transparent",
+                      borderWidth: selectedPlantilla ? 1 : 0,
+                    }
+                  ]}
+                >
+                  <Text style={{ color: selectedPlantilla ? "#10b981" : colors.text, fontWeight: selectedPlantilla ? "bold" : "500" }}>
+                    {selectedPlantilla 
+                      ? plantillas.find(p => p.plantilla_id === selectedPlantilla)?.nombre 
+                      : "Toca para seleccionar plantilla..."}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
              )}
           </View>
           
@@ -381,6 +381,53 @@ export function CrearCasoScreen() {
 
         <View style={{ height: 40 }} />
       </Animated.ScrollView>
+
+      {/* MODAL DE SELECCIÓN DE PLANTILLAS */}
+      <Modal visible={modalPlantillaVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Selecciona una Plantilla</Text>
+              <TouchableOpacity onPress={() => setModalPlantillaVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {plantillas.map((p) => (
+                <TouchableOpacity
+                  key={p.plantilla_id}
+                  onPress={() => {
+                    setSelectedPlantilla(p.plantilla_id);
+                    setModalPlantillaVisible(false);
+                  }}
+                  style={[styles.modalItem, selectedPlantilla === p.plantilla_id && { backgroundColor: `${colors.primary}15` }]}
+                >
+                  <View>
+                    <Text style={{ color: selectedPlantilla === p.plantilla_id ? colors.primary : colors.text, fontWeight: selectedPlantilla === p.plantilla_id ? "bold" : "500", fontSize: 15 }}>
+                      {p.nombre}
+                    </Text>
+                    {p.es_global && <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>Plantilla Global</Text>}
+                  </View>
+                  {selectedPlantilla === p.plantilla_id && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                onPress={() => {
+                  setSelectedPlantilla(null);
+                  setModalPlantillaVisible(false);
+                }}
+                style={[styles.modalItem, selectedPlantilla === null && { backgroundColor: `${colors.primary}15` }]}
+              >
+                <Text style={{ color: selectedPlantilla === null ? colors.primary : colors.text, fontWeight: selectedPlantilla === null ? "bold" : "500", fontSize: 15 }}>
+                  Ninguna / Sin plantilla
+                </Text>
+                {selectedPlantilla === null && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
@@ -547,5 +594,39 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalContent: {
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  modalItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
   }
 });

@@ -57,9 +57,9 @@ export function SeleccionBitacoraScreen() {
             <Ionicons name="arrow-back" size={20} color={colors.text} />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={[styles.title, { color: colors.text }]}>Nueva Bitácora</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Plantillas</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              ¿Cómo deseas crear la bitácora?
+              Modela la información de tus bitácoras
             </Text>
           </View>
           <View style={[styles.headerIcon, { backgroundColor: `${colors.primary}18` }]}>
@@ -76,7 +76,7 @@ export function SeleccionBitacoraScreen() {
         >
           <Ionicons name="information-circle-outline" size={16} color="#3b82f6" />
           <Text style={[styles.infoChipText, { color: "#3b82f6" }]}>
-            Una bitácora necesita una plantilla que defina su estructura
+            Crea plantillas para definir la estructura de tus bitácoras.
           </Text>
         </View>
 

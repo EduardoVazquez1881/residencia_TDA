@@ -175,3 +175,59 @@ export async function getPlantillas(uid: string): Promise<PlantillaData[]> {
   if (error || !data) return [];
   return data as PlantillaData[];
 }
+
+// ─── Obtener Estructura Completa de Plantilla ──────────────────────────────
+export interface EstructuraCampo {
+  campo_id: number;
+  clave: string;
+  etiqueta: string;
+  tipo: string;
+  requerido: boolean;
+  orden: number;
+}
+
+export interface EstructuraSeccion {
+  seccion_id: number;
+  nombre: string;
+  descripcion: string | null;
+  orden: number;
+  campos: EstructuraCampo[];
+}
+
+export interface PlantillaEstructura extends PlantillaData {
+  secciones: EstructuraSeccion[];
+}
+
+export async function getPlantillaEstructura(plantillaId: number): Promise<PlantillaEstructura | null> {
+  const { data, error } = await supabase
+    .from("plantillas")
+    .select(`
+      *,
+      plantilla_secciones (
+        seccion_id, nombre, descripcion, orden,
+        plantilla_campos (
+          campo_id, clave, etiqueta, tipo, requerido, orden
+        )
+      )
+    `)
+    .eq("plantilla_id", plantillaId)
+    .single();
+
+  if (error || !data) {
+    console.error("Error fetching plantilla estructura:", error);
+    return null;
+  }
+
+  // Ordenar en memoria
+  const secciones = (data.plantilla_secciones || [])
+    .sort((a: any, b: any) => a.orden - b.orden)
+    .map((sec: any) => ({
+      ...sec,
+      campos: (sec.plantilla_campos || []).sort((a: any, b: any) => a.orden - b.orden)
+    }));
+
+  return {
+    ...(data as unknown as PlantillaData),
+    secciones
+  };
+}

@@ -117,7 +117,7 @@ export function NuevaPlantillaScreen() {
   const canGoNext = (): boolean => {
     switch (step) {
       case 1:
-        return nombre.trim().length > 0 && (esGlobal || alumnoId !== null);
+        return nombre.trim().length > 0;
       case 2:
         return secciones.length >= 1 && !showAddSeccion;
       case 3:
@@ -412,6 +412,33 @@ export function NuevaPlantillaScreen() {
                     </TouchableOpacity>
                   );
                 })}
+                <TouchableOpacity
+                  onPress={() => setAlumnoId(null)}
+                  activeOpacity={0.75}
+                  style={[
+                    styles.alumnoOption,
+                    {
+                      backgroundColor: alumnoId === null
+                        ? isDark
+                          ? `${colors.primary}22`
+                          : "#e0f2fe"
+                        : colors.input,
+                      borderColor: alumnoId === null ? colors.primary : "transparent",
+                      marginTop: 4
+                    },
+                  ]}
+                >
+                  <View style={[styles.alumnoAvatar, { backgroundColor: isDark ? "#374151" : "#e2e8f0" }]}>
+                    <Ionicons name="help-outline" size={18} color={colors.textSecondary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.alumnoNombre, { color: alumnoId === null ? colors.primary : colors.text }]}>
+                      Sin asociar alumno
+                    </Text>
+                    <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>Podrás asignarlo después al usar la plantilla</Text>
+                  </View>
+                  {alumnoId === null && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -1083,10 +1110,27 @@ export function NuevaPlantillaScreen() {
           </View>
         </View>
 
-        {/* Barra de progreso */}
-        <View style={styles.progressRow}>
-          {STEPS.map((s, i) => (
-            <View key={s.num} style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+        {/* Barra de progreso unificada */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 20, marginBottom: 16 }}>
+          {/* Líneas absolutas de fondo */}
+          <View style={{ position: "absolute", top: 13, left: 33, right: 33, height: 2, flexDirection: "row" }}>
+            {STEPS.map((s, i) => {
+              if (i === STEPS.length - 1) return null;
+              return (
+                <View
+                  key={`line-${s.num}`}
+                  style={{
+                    flex: 1,
+                    backgroundColor: step > s.num ? colors.primary : isDark ? "#374151" : "#e5e7eb",
+                  }}
+                />
+              );
+            })}
+          </View>
+
+          {/* Dots y Labels */}
+          {STEPS.map((s) => (
+            <View key={s.num} style={{ alignItems: "center", width: 66 }}>
               <View
                 style={[
                   styles.progressDot,
@@ -1105,7 +1149,7 @@ export function NuevaPlantillaScreen() {
                 ]}
               >
                 {step > s.num ? (
-                  <Ionicons name="checkmark" size={11} color="#fff" />
+                  <Ionicons name="checkmark" size={12} color="#fff" />
                 ) : (
                   <Text
                     style={[
@@ -1117,41 +1161,21 @@ export function NuevaPlantillaScreen() {
                   </Text>
                 )}
               </View>
-              {i < STEPS.length - 1 && (
-                <View
-                  style={[
-                    styles.progressLine,
-                    {
-                      backgroundColor:
-                        step > s.num
-                          ? colors.primary
-                          : isDark
-                          ? "#374151"
-                          : "#e5e7eb",
-                    },
-                  ]}
-                />
-              )}
+              <Text
+                style={[
+                  styles.progressLabel,
+                  {
+                    color: step === s.num ? colors.primary : colors.textSecondary,
+                    fontWeight: step === s.num ? "700" : "400",
+                    marginTop: 6,
+                    textAlign: "center"
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {s.label}
+              </Text>
             </View>
-          ))}
-        </View>
-
-        {/* Labels */}
-        <View style={styles.progressLabels}>
-          {STEPS.map((s) => (
-            <Text
-              key={s.num}
-              style={[
-                styles.progressLabel,
-                {
-                  color:
-                    step === s.num ? colors.primary : colors.textSecondary,
-                  fontWeight: step === s.num ? "700" : "400",
-                },
-              ]}
-            >
-              {s.label}
-            </Text>
           ))}
         </View>
       </View>

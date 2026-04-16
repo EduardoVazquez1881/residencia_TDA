@@ -184,3 +184,129 @@ export async function getMisCasos(uid: string): Promise<ListaCasoData[]> {
   }
   return data as any as ListaCasoData[];
 }
+
+// ─── Detalles del Caso ────────────────────────────────────────────────────────
+export interface CasoDetalleData {
+  caso_id: number;
+  alumno_id: number;
+  usuario_id: string; // dueño del caso
+  creado_por: string;
+  plantilla_id: number | null;
+  estado: string;
+  notas_asignacion: string | null;
+  fecha_asignacion: string;
+  alumnos?: {
+    pseudonimo: string;
+    nivel_tea: number;
+  };
+  plantillas?: {
+    nombre: string;
+  };
+  participantes: Array<{
+    rol_en_caso: string;
+    usuario: {
+      usuario_id: string;
+      nombres: string;
+      apellidos: string;
+      correo: string;
+    };
+  }>;
+}
+
+export async function getCasoDetalle(casoId: number): Promise<CasoDetalleData | null> {
+  // 1. Obtener la información principal del caso
+  const { data: casoData, error: casoError } = await supabase
+    .from("casos")
+    .select(`
+      caso_id, alumno_id, usuario_id, creado_por, plantilla_id, estado, notas_asignacion, fecha_asignacion,
+      alumnos (pseudonimo, nivel_tea),
+      plantillas (nombre)
+    `)
+    .eq("caso_id", casoId)
+    .single();
+
+  if (casoError || !casoData) {
+    console.error("Error fetching detalle caso:", casoError);
+    return null;
+  }
+
+  // 2. Obtener los participantes vinculados cruzando con usuarios
+  const { data: partData, error: partError } = await supabase
+    .from("caso_participantes")
+    .select(`
+      rol_en_caso,
+      usuarios!caso_participantes_usuario_id_fkey (
+        usuario_id,
+        nombres,
+        apellidos,
+        correo
+      )
+    `)
+    .eq("caso_id", casoId);
+
+  if (partError) {
+    console.error("Error fetching participantes:", partError);
+  }
+
+  // Estructuramos la respuesta asegurándonos de extraer la relación 'usuarios' correctamente
+  const participantes = (partData || []).map((p: any) => ({
+    rol_en_caso: p.rol_en_caso,
+    usuario: Array.isArray(p.usuarios) ? p.usuarios[0] : p.usuarios // Supabase a veces lo devuelve como arreglo
+  }));
+
+  return {
+    ...(casoData as any),
+    participantes,
+  };
+}
+
+// ─── Actualizar Caso Base ──────────────────────────────────────────────────────
+export async function actualizarCasoBase(
+  casoId: number,
+  plantillaId: number | null,
+  notas: string | null
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("casos")
+    .update({
+      plantilla_id: plantillaId,
+      notas_asignacion: notas,
+    })
+    .eq("caso_id", casoId);
+
+  return { error: error?.message || null };
+}
+
+// ─── Agregar un Participante (Directo en Edición) ──────────────────────────────
+export async function agregarParticipanteExistente(
+  casoId: number,
+  correo: string,
+  rol: string,
+  agregadoPor: string
+): Promise<{ error: string | null }> {
+  const c = correo.trim().toLowerCase();
+  if (!c) return { error: "El correo está vacío." };
+
+  // 1. Validar que el usuario existe en el sistema
+  const uid = await getUsuarioPorCorreo(c);
+  if (!uid) {
+    return { error: "No se encontró a ningún usuario con ese correo electrónico en el sistema." };
+  }
+
+  // 2. Insertarlo (si ocurre error de duplicidad, Supabase botará constraint ya que la Primary es caso_id + usuario_id)
+  const { error } = await supabase.from("caso_participantes").insert({
+    caso_id: casoId,
+    usuario_id: uid,
+    rol_en_caso: rol,
+    agregado_por: agregadoPor,
+  });
+
+  if (error) {
+    if (error.code === "23505") { // Violación de unicidad
+      return { error: "Este usuario ya se encuentra participando en el caso." };
+    }
+    return { error: error.message };
+  }
+
+  return { error: null };
+}

@@ -16,13 +16,14 @@ import {
   Alert,
   Animated,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 // ─── Niveles TEA ──────────────────────────────────────────────────────────────
 const NIVELES_TEA = [
@@ -30,28 +31,6 @@ const NIVELES_TEA = [
   { id: 2, label: "Nivel 2", desc: "Apoyo\nsustancial" },
   { id: 3, label: "Nivel 3", desc: "Apoyo muy\nsustancial" },
 ];
-
-// ─── Helper: convertir DD/MM/AAAA → YYYY-MM-DD ───────────────────────────────
-function parseFechaISO(
-  dia: string,
-  mes: string,
-  anio: string,
-): string | null {
-  const d = parseInt(dia, 10);
-  const m = parseInt(mes, 10);
-  const y = parseInt(anio, 10);
-  const now = new Date().getFullYear();
-
-  if (
-    isNaN(d) || isNaN(m) || isNaN(y) ||
-    d < 1 || d > 31 ||
-    m < 1 || m > 12 ||
-    y < 1900 || y > now
-  ) return null;
-
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${y}-${pad(m)}-${pad(d)}`;
-}
 
 // ─── Pantalla ─────────────────────────────────────────────────────────────────
 export function RegistroAlumnoScreen() {
@@ -61,9 +40,9 @@ export function RegistroAlumnoScreen() {
 
   // — Estado del formulario —
   const [pseudonimo, setPseudonimo] = useState("");
-  const [dia, setDia] = useState("");
-  const [mes, setMes] = useState("");
-  const [anio, setAnio] = useState("");
+  const [fechaNac, setFechaNac] = useState<Date | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  
   const [nivelTea, setNivelTea] = useState<number | null>(null);
   const [escuela, setEscuela] = useState("");
   const [grado, setGrado] = useState("");
@@ -74,9 +53,13 @@ export function RegistroAlumnoScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({ pseudonimo: "", fecha: "" });
 
-  // — Refs para fecha —
-  const mesRef = useRef<TextInput>(null);
-  const anioRef = useRef<TextInput>(null);
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') setShowPicker(false);
+    if (selectedDate) {
+      setFechaNac(selectedDate);
+      setErrors(prev => ({ ...prev, fecha: "" }));
+    }
+  };
 
   // — Animación de entrada —
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -103,15 +86,8 @@ export function RegistroAlumnoScreen() {
     if (!pseudonimo.trim()) {
       newErrors.pseudonimo = "El pseudónimo es requerido";
     }
-    // Validar fecha solo si alguno de los campos fue llenado
-    const fechaIngresada = dia || mes || anio;
-    if (fechaIngresada) {
-      if (!parseFechaISO(dia, mes, anio)) {
-        newErrors.fecha = "Fecha inválida (DD / MM / AAAA)";
-      }
-    }
     setErrors(newErrors);
-    return !newErrors.pseudonimo && !newErrors.fecha;
+    return !newErrors.pseudonimo;
   };
 
   // — Guardar alumno —
@@ -158,8 +134,9 @@ export function RegistroAlumnoScreen() {
   const doGuardar = async (uid: string) => {
     setLoading(true);
     try {
-      const fechaISO =
-        dia || mes || anio ? parseFechaISO(dia, mes, anio) : null;
+      const fechaISO = fechaNac 
+        ? new Date(fechaNac.getTime() - fechaNac.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+        : null;
 
       const result = await crearAlumno({
         pseudonimo: pseudonimo.trim(),
@@ -201,13 +178,25 @@ export function RegistroAlumnoScreen() {
   } as const;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1, backgroundColor: colors.background }}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <Animated.ScrollView
+      {/* Fondo curvo y elegante superior */}
+      <View style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        height: 220,
+        backgroundColor: colors.primary,
+        borderBottomLeftRadius: 40,
+        borderBottomRightRadius: 40,
+        opacity: isDark ? 0.3 : 1
+      }} />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <Animated.ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -219,27 +208,27 @@ export function RegistroAlumnoScreen() {
             onPress={() => router.back()}
             style={[
               styles.backBtn,
-              { backgroundColor: isDark ? colors.backgroundSecondary : "#f0f4f8" },
+              { backgroundColor: "rgba(255,255,255,0.2)" },
             ]}
             activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
+            <Ionicons name="arrow-back" size={20} color="#fff" />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>
+            <Text style={[styles.headerTitle, { color: "#fff" }]}>
               Nuevo Alumno
             </Text>
-            <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
+            <Text style={[styles.headerSub, { color: "rgba(255,255,255,0.8)" }]}>
               Completa los datos del alumno
             </Text>
           </View>
           <View
             style={[
               styles.headerIcon,
-              { backgroundColor: `${colors.primary}18` },
+              { backgroundColor: "rgba(255,255,255,0.2)" },
             ]}
           >
-            <Ionicons name="person-add-outline" size={22} color={colors.primary} />
+            <Ionicons name="person-add-outline" size={22} color="#fff" />
           </View>
         </View>
 
@@ -279,107 +268,30 @@ export function RegistroAlumnoScreen() {
             <FormLabel
               label="Fecha de Nacimiento"
               error={errors.fecha}
-              helperText="Opcional — Día / Mes / Año"
+              helperText="Opcional — Selecciona una fecha"
             />
-            <View style={styles.dateRow}>
-              {/* Día */}
-              <View style={styles.dateFieldSmall}>
-                <Text style={[styles.dateSublabel, { color: colors.textSecondary }]}>
-                  Día
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => setShowPicker(true)}
+                activeOpacity={0.7}
+                style={[
+                  styles.dateInputWrapper,
+                  {
+                    backgroundColor: isDark ? "#ffffff10" : "#f1f5f9",
+                    borderColor: errors.fecha ? colors.error : "transparent",
+                  },
+                ]}
+              >
+                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                <Text style={{ flex: 1, marginLeft: 10, fontSize: 16, color: fechaNac ? colors.text : colors.textSecondary, fontWeight: fechaNac ? "600" : "400" }}>
+                  {fechaNac ? fechaNac.toLocaleDateString() : "Seleccionar fecha..."}
                 </Text>
-                <TextInput
-                  value={dia}
-                  onChangeText={(t) => {
-                    const clean = t.replace(/\D/g, "").slice(0, 2);
-                    setDia(clean);
-                    if (errors.fecha) setErrors({ ...errors, fecha: "" });
-                    if (clean.length === 2) mesRef.current?.focus();
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  placeholder="DD"
-                  placeholderTextColor={colors.textSecondary}
-                  style={[
-                    styles.dateInput,
-                    {
-                      backgroundColor: colors.input,
-                      borderColor: errors.fecha ? colors.error : colors.inputBorder,
-                      color: colors.text,
-                    },
-                  ]}
-                />
-              </View>
-
-              <Text style={[styles.dateSep, { color: colors.textSecondary }]}>/</Text>
-
-              {/* Mes */}
-              <View style={styles.dateFieldSmall}>
-                <Text style={[styles.dateSublabel, { color: colors.textSecondary }]}>
-                  Mes
-                </Text>
-                <TextInput
-                  ref={mesRef}
-                  value={mes}
-                  onChangeText={(t) => {
-                    const clean = t.replace(/\D/g, "").slice(0, 2);
-                    setMes(clean);
-                    if (errors.fecha) setErrors({ ...errors, fecha: "" });
-                    if (clean.length === 2) anioRef.current?.focus();
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  placeholder="MM"
-                  placeholderTextColor={colors.textSecondary}
-                  style={[
-                    styles.dateInput,
-                    {
-                      backgroundColor: colors.input,
-                      borderColor: errors.fecha ? colors.error : colors.inputBorder,
-                      color: colors.text,
-                    },
-                  ]}
-                />
-              </View>
-
-              <Text style={[styles.dateSep, { color: colors.textSecondary }]}>/</Text>
-
-              {/* Año */}
-              <View style={styles.dateFieldLarge}>
-                <Text style={[styles.dateSublabel, { color: colors.textSecondary }]}>
-                  Año
-                </Text>
-                <TextInput
-                  ref={anioRef}
-                  value={anio}
-                  onChangeText={(t) => {
-                    const clean = t.replace(/\D/g, "").slice(0, 4);
-                    setAnio(clean);
-                    if (errors.fecha) setErrors({ ...errors, fecha: "" });
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  placeholder="AAAA"
-                  placeholderTextColor={colors.textSecondary}
-                  style={[
-                    styles.dateInput,
-                    {
-                      backgroundColor: colors.input,
-                      borderColor: errors.fecha ? colors.error : colors.inputBorder,
-                      color: colors.text,
-                    },
-                  ]}
-                />
-              </View>
-
-              {/* Limpiar fecha */}
-              {(dia || mes || anio) ? (
-                <TouchableOpacity
-                  onPress={() => { setDia(""); setMes(""); setAnio(""); setErrors({ ...errors, fecha: "" }); }}
-                  style={styles.clearDate}
-                >
-                  <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              {fechaNac && (
+                <TouchableOpacity onPress={() => setFechaNac(null)} style={{ padding: 8 }}>
+                  <Ionicons name="close-circle" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
-              ) : null}
+              )}
             </View>
           </View>
 
@@ -562,7 +474,42 @@ export function RegistroAlumnoScreen() {
 
         <View style={{ height: 40 }} />
       </Animated.ScrollView>
+
+      {/* DatePickers natively */}
+      {showPicker && Platform.OS === "ios" && (
+         <Modal transparent animationType="slide" visible={!!showPicker}>
+           <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+             <View style={{ backgroundColor: "#fff", paddingBottom: 40, paddingTop: 20, borderRadius: 20 }}>
+               <View style={{ paddingHorizontal: 20, marginBottom: 15 }}>
+                 <Text style={{ fontSize: 18, fontWeight: "700", textAlign: "center", color: "#333" }}>
+                   Fecha de Nacimiento
+                 </Text>
+               </View>
+               <DateTimePicker
+                 value={fechaNac || new Date()}
+                 mode="date"
+                 display="spinner"
+                 onChange={onDateChange}
+                 textColor="#000"
+                 style={{ alignSelf: "center", width: "100%", height: 200 }}
+               />
+               <View style={{ paddingHorizontal: 20, marginTop: 15 }}>
+                 <PrimaryButton title="Confirmar" onPress={() => setShowPicker(false)} />
+               </View>
+             </View>
+           </View>
+         </Modal>
+      )}
+      {showPicker && Platform.OS === "android" && (
+         <DateTimePicker
+           value={fechaNac || new Date()}
+           mode="date"
+           display="default"
+           onChange={onDateChange}
+         />
+      )}
     </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -670,40 +617,15 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
 
-  // Fecha
-  dateRow: {
+  // Fecha Native Wrapper
+  dateInputWrapper: {
+    flex: 1,
     flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 6,
-  },
-  dateFieldSmall: {
-    flex: 2,
-  },
-  dateFieldLarge: {
-    flex: 3,
-  },
-  dateSublabel: {
-    fontSize: 11,
-    fontWeight: "500",
-    marginBottom: 5,
-  },
-  dateInput: {
+    alignItems: "center",
     borderWidth: 1,
     borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  dateSep: {
-    fontSize: 20,
-    fontWeight: "300",
-    marginBottom: 10,
-  },
-  clearDate: {
-    marginBottom: 8,
-    padding: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
 
   // Nivel TEA

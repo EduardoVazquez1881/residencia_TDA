@@ -465,15 +465,15 @@ export function HomeScreen() {
         <View style={styles.accionesRow}>
           {[
             {
-              label: "Nueva Bitácora",
-              icon: "newspaper-outline" as const,
-              bg: isDark ? "#1e2d3d" : "#eff6ff",
-              color: "#3b82f6",
+              label: "Plantillas",
+              icon: "document-text-outline" as const,
+              bg: isDark ? "#1e2d3d" : "#e0f2fe",
+              color: "#0284c7",
               onPress: () => router.push("/seleccion-bitacora" as any),
             },
             {
               label: "Expedientes",
-              icon: "person-add-outline" as const,
+              icon: "folder-open-outline" as const,
               bg: isDark ? "#2d1e1e" : "#fff1f2",
               color: "#ef4444",
               onPress: () => router.push("/expedientes" as any),
@@ -689,6 +689,7 @@ export function HomeScreen() {
                 key="fab"
                 style={styles.fabContainer}
                 activeOpacity={0.85}
+                onPress={() => router.push("/seleccion-caso" as any)}
               >
                 <View
                   style={[
