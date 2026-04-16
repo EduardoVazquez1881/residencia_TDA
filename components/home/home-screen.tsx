@@ -11,8 +11,8 @@
 
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { getCurrentSession } from "@/services/auth.service";
 import { AlumnoData, getAlumnos } from "@/services/alumnos.service";
+import { getCurrentSession } from "@/services/auth.service";
 import { getUsuario, UsuarioData } from "@/services/usuarios.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -27,23 +28,33 @@ import {
   View,
 } from "react-native";
 
-
 // ─── Helpers nivel TEA ────────────────────────────────────────────────────────
 function getNivelTeaColor(nivel: number | null | undefined): string {
   switch (nivel) {
-    case 1: return "#10b981";
-    case 2: return "#f59e0b";
-    case 3: return "#ef4444";
-    default: return "#9ca3af";
+    case 1:
+      return "#10b981";
+    case 2:
+      return "#f59e0b";
+    case 3:
+      return "#ef4444";
+    default:
+      return "#9ca3af";
   }
 }
 
-function getNivelTeaBg(nivel: number | null | undefined, isDark: boolean): string {
+function getNivelTeaBg(
+  nivel: number | null | undefined,
+  isDark: boolean,
+): string {
   switch (nivel) {
-    case 1: return isDark ? "#1a2e27" : "#ecfdf5";
-    case 2: return isDark ? "#2e2010" : "#fffbeb";
-    case 3: return isDark ? "#2e1515" : "#fef2f2";
-    default: return isDark ? "#1f2937" : "#f3f4f6";
+    case 1:
+      return isDark ? "#1a2e27" : "#ecfdf5";
+    case 2:
+      return isDark ? "#2e2010" : "#fffbeb";
+    case 3:
+      return isDark ? "#2e1515" : "#fef2f2";
+    default:
+      return isDark ? "#1f2937" : "#f3f4f6";
   }
 }
 
@@ -64,35 +75,40 @@ export function HomeScreen() {
   const [userData, setUserData] = useState<UsuarioData | null>(null);
   const [alumnos, setAlumnos] = useState<AlumnoData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState("");
 
   // Animaciones de entrada
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const session = await getCurrentSession();
-        if (!session) {
-          router.replace("/");
-          return;
-        }
-        const [user, alumnosList] = await Promise.all([
-          getUsuario(session.user.id),
-          getAlumnos(session.user.id),
-        ]);
-        setUserData(user);
-        setAlumnos(alumnosList);
-      } catch (e) {
-        console.error("Error fetching data:", e);
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    try {
+      const session = await getCurrentSession();
+      if (!session) {
+        router.replace("/");
+        return;
       }
-    };
+      const [user, alumnosList] = await Promise.all([
+        getUsuario(session.user.id),
+        getAlumnos(session.user.id),
+      ]);
+      setUserData(user);
+      setAlumnos(alumnosList);
+    } catch (e) {
+      console.error("Error fetching data:", e);
+    }
+  };
 
-    fetchData();
+  useEffect(() => {
+    fetchData().finally(() => setLoading(false));
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     if (!loading) {
@@ -113,7 +129,12 @@ export function HomeScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: colors.background },
+        ]}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
           Cargando...
@@ -144,11 +165,20 @@ export function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* ── Encabezado / Saludo ── */}
         <View style={styles.headerRow}>
           <View>
-            <Text style={[styles.welcomeSmall, { color: colors.textSecondary }]}>
+            <Text
+              style={[styles.welcomeSmall, { color: colors.textSecondary }]}
+            >
               Bienvenida de nuevo,
             </Text>
             <Text style={[styles.welcomeName, { color: colors.text }]}>
@@ -156,34 +186,45 @@ export function HomeScreen() {
             </Text>
           </View>
           {/* Avatar */}
-          <View style={[
-            styles.avatarCircle,
-            {
-              backgroundColor: isDark ? colors.backgroundSecondary : "#f0f4f8",
-              shadowColor: "#000",
-              shadowOpacity: 0.06,
-              shadowRadius: 8,
-              shadowOffset: { width: 0, height: 2 },
-              elevation: 2,
-            }
-          ]}>
+          <View
+            style={[
+              styles.avatarCircle,
+              {
+                backgroundColor: isDark
+                  ? colors.backgroundSecondary
+                  : "#f0f4f8",
+                shadowColor: "#000",
+                shadowOpacity: 0.06,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 2,
+              },
+            ]}
+          >
             <Ionicons name="person" size={20} color={colors.textSecondary} />
           </View>
         </View>
 
         {/* ── Buscador ── */}
-        <View style={[
-          styles.searchBar,
-          {
-            backgroundColor: isDark ? colors.backgroundSecondary : "#f5f7fa",
-            shadowColor: "#000",
-            shadowOpacity: isDark ? 0 : 0.04,
-            shadowRadius: 6,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 1,
-          }
-        ]}>
-          <Ionicons name="search-outline" size={17} color={colors.textSecondary} style={styles.searchIcon} />
+        <View
+          style={[
+            styles.searchBar,
+            {
+              backgroundColor: isDark ? colors.backgroundSecondary : "#f5f7fa",
+              shadowColor: "#000",
+              shadowOpacity: isDark ? 0 : 0.04,
+              shadowRadius: 6,
+              shadowOffset: { width: 0, height: 2 },
+              elevation: 1,
+            },
+          ]}
+        >
+          <Ionicons
+            name="search-outline"
+            size={17}
+            color={colors.textSecondary}
+            style={styles.searchIcon}
+          />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
             placeholder="Buscar alumno por pseudónimo..."
@@ -209,18 +250,27 @@ export function HomeScreen() {
         >
           {/* Encabezado */}
           <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Mis Alumnos</Text>
-            <Ionicons name="people-outline" size={17} color={colors.textSecondary} />
+            <Text style={[styles.cardTitle, { color: colors.text }]}>
+              Mis Alumnos
+            </Text>
+            <Ionicons
+              name="people-outline"
+              size={17}
+              color={colors.textSecondary}
+            />
           </View>
 
           {alumnos.length === 0 ? (
             /* Sin alumnos — CTA */
             <TouchableOpacity
-              onPress={() => router.push("/registro-alumno" as any)}
+              onPress={() => router.push("/alumnos" as any)}
               activeOpacity={0.8}
               style={[
                 styles.summaryEmptyRow,
-                { backgroundColor: isDark ? "#ffffff08" : "#f8fafc", borderRadius: 14 },
+                {
+                  backgroundColor: isDark ? "#ffffff08" : "#f8fafc",
+                  borderRadius: 14,
+                },
               ]}
             >
               <View
@@ -229,17 +279,32 @@ export function HomeScreen() {
                   { backgroundColor: `${colors.primary}18` },
                 ]}
               >
-                <Ionicons name="person-add-outline" size={22} color={colors.primary} />
+                <Ionicons
+                  name="person-add-outline"
+                  size={22}
+                  color={colors.primary}
+                />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.summaryEmptyTitle, { color: colors.text }]}>
+                <Text
+                  style={[styles.summaryEmptyTitle, { color: colors.text }]}
+                >
                   Aún no hay alumnos
                 </Text>
-                <Text style={[styles.summaryEmptyDesc, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.summaryEmptyDesc,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   Toca aquí para registrar tu primer alumno
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.textSecondary}
+              />
             </TouchableOpacity>
           ) : (
             <>
@@ -252,27 +317,52 @@ export function HomeScreen() {
                     { backgroundColor: isDark ? "#ffffff08" : "#f0f7ff" },
                   ]}
                 >
-                  <Text style={[styles.summaryTotalNum, { color: colors.primary }]}>
+                  <Text
+                    style={[styles.summaryTotalNum, { color: colors.primary }]}
+                  >
                     {alumnos.length}
                   </Text>
-                  <Text style={[styles.summaryTotalLabel, { color: colors.textSecondary }]}>
-                    {alumnos.length === 1 ? "alumno" : "alumnos"}{"\n"}activos
+                  <Text
+                    style={[
+                      styles.summaryTotalLabel,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {alumnos.length === 1 ? "alumno" : "alumnos"}
+                    {"\n"}activos
                   </Text>
                 </View>
 
                 {/* Desglose por nivel TEA */}
                 <View style={styles.summaryLevels}>
                   {[1, 2, 3].map((n) => {
-                    const count = alumnos.filter((a) => a.nivel_tea === n).length;
+                    const count = alumnos.filter(
+                      (a) => a.nivel_tea === n,
+                    ).length;
                     const color = getNivelTeaColor(n);
                     const bg = getNivelTeaBg(n, isDark);
                     return (
-                      <View key={n} style={[styles.summaryLevelRow, { backgroundColor: bg, borderRadius: 10 }]}>
-                        <View style={[styles.nivelDot, { backgroundColor: color }]} />
-                        <Text style={[styles.summaryLevelLabel, { color: colors.textSecondary }]}>
+                      <View
+                        key={n}
+                        style={[
+                          styles.summaryLevelRow,
+                          { backgroundColor: bg, borderRadius: 10 },
+                        ]}
+                      >
+                        <View
+                          style={[styles.nivelDot, { backgroundColor: color }]}
+                        />
+                        <Text
+                          style={[
+                            styles.summaryLevelLabel,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
                           Nivel {n}
                         </Text>
-                        <Text style={[styles.summaryLevelCount, { color }]}>{count}</Text>
+                        <Text style={[styles.summaryLevelCount, { color }]}>
+                          {count}
+                        </Text>
                       </View>
                     );
                   })}
@@ -295,18 +385,38 @@ export function HomeScreen() {
                   <View
                     style={[
                       styles.alumnoAvatar,
-                      { backgroundColor: `${colors.primary}1a`, marginRight: 10 },
+                      {
+                        backgroundColor: `${colors.primary}1a`,
+                        marginRight: 10,
+                      },
                     ]}
                   >
-                    <Text style={[styles.alumnoInicial, { color: colors.primary, fontSize: 15 }]}>
+                    <Text
+                      style={[
+                        styles.alumnoInicial,
+                        { color: colors.primary, fontSize: 15 },
+                      ]}
+                    >
                       {alumnos[0].pseudonimo.charAt(0).toUpperCase()}
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[{ fontSize: 11, color: colors.textSecondary, marginBottom: 1 }]}>
+                    <Text
+                      style={[
+                        {
+                          fontSize: 11,
+                          color: colors.textSecondary,
+                          marginBottom: 1,
+                        },
+                      ]}
+                    >
                       Último registrado
                     </Text>
-                    <Text style={[{ fontSize: 14, fontWeight: "700", color: colors.text }]}>
+                    <Text
+                      style={[
+                        { fontSize: 14, fontWeight: "700", color: colors.text },
+                      ]}
+                    >
                       {alumnos[0].pseudonimo}
                     </Text>
                   </View>
@@ -314,13 +424,22 @@ export function HomeScreen() {
                     <View
                       style={[
                         styles.nivelPill,
-                        { backgroundColor: getNivelTeaBg(alumnos[0].nivel_tea, isDark) },
+                        {
+                          backgroundColor: getNivelTeaBg(
+                            alumnos[0].nivel_tea,
+                            isDark,
+                          ),
+                        },
                       ]}
                     >
                       <View
                         style={[
                           styles.nivelDot,
-                          { backgroundColor: getNivelTeaColor(alumnos[0].nivel_tea) },
+                          {
+                            backgroundColor: getNivelTeaColor(
+                              alumnos[0].nivel_tea,
+                            ),
+                          },
                         ]}
                       />
                       <Text
@@ -340,12 +459,32 @@ export function HomeScreen() {
         </View>
 
         {/* ── Acciones Rápidas ── */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Acciones Rápidas</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Acciones Rápidas
+        </Text>
         <View style={styles.accionesRow}>
           {[
-            { label: "Nueva Bitácora", icon: "newspaper-outline" as const, bg: isDark ? "#1e2d3d" : "#eff6ff", color: "#3b82f6", onPress: () => router.push("/seleccion-bitacora" as any) },
-            { label: "Expedientes", icon: "person-add-outline" as const, bg: isDark ? "#2d1e1e" : "#fff1f2", color: "#ef4444", onPress: () => router.push("/registro-alumno" as any) },
-            { label: "Alumnos", icon: "people-outline" as const, bg: isDark ? "#251e2d" : "#f5f3ff", color: "#8b5cf6", onPress: () => {} },
+            {
+              label: "Nueva Bitácora",
+              icon: "newspaper-outline" as const,
+              bg: isDark ? "#1e2d3d" : "#eff6ff",
+              color: "#3b82f6",
+              onPress: () => router.push("/seleccion-bitacora" as any),
+            },
+            {
+              label: "Expedientes",
+              icon: "person-add-outline" as const,
+              bg: isDark ? "#2d1e1e" : "#fff1f2",
+              color: "#ef4444",
+              onPress: () => router.push("/expedientes" as any),
+            },
+            {
+              label: "Alumnos",
+              icon: "people-outline" as const,
+              bg: isDark ? "#251e2d" : "#f5f3ff",
+              color: "#8b5cf6",
+              onPress: () => router.push("/alumnos" as any),
+            },
           ].map((accion) => (
             <TouchableOpacity
               key={accion.label}
@@ -359,14 +498,21 @@ export function HomeScreen() {
                   shadowRadius: 8,
                   shadowOffset: { width: 0, height: 2 },
                   elevation: 2,
-                }
+                },
               ]}
               activeOpacity={0.7}
             >
-              <View style={[styles.accionIconCircle, { backgroundColor: accion.bg }]}>
+              <View
+                style={[
+                  styles.accionIconCircle,
+                  { backgroundColor: accion.bg },
+                ]}
+              >
                 <Ionicons name={accion.icon} size={21} color={accion.color} />
               </View>
-              <Text style={[styles.accionLabel, { color: colors.textSecondary }]}>
+              <Text
+                style={[styles.accionLabel, { color: colors.textSecondary }]}
+              >
                 {accion.label}
               </Text>
             </TouchableOpacity>
@@ -375,11 +521,18 @@ export function HomeScreen() {
 
         {/* ── Alumnos Recientes ── */}
         <View style={styles.recentesHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: colors.text, marginBottom: 0 },
+            ]}
+          >
             {searchText.trim() ? "Resultados" : "Alumnos Recientes"}
           </Text>
           <TouchableOpacity>
-            <Text style={[styles.verTodo, { color: colors.primary }]}>Ver todo</Text>
+            <Text style={[styles.verTodo, { color: colors.primary }]}>
+              Ver todo
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -420,7 +573,9 @@ export function HomeScreen() {
             const nivelBg = getNivelTeaBg(alumno.nivel_tea, isDark);
             const escuelaMeta = [
               alumno.escuela_actual,
-              [alumno.grado_escolar, alumno.grupo_escolar].filter(Boolean).join(" - "),
+              [alumno.grado_escolar, alumno.grupo_escolar]
+                .filter(Boolean)
+                .join(" - "),
             ]
               .filter(Boolean)
               .join(" · ");
@@ -431,7 +586,9 @@ export function HomeScreen() {
                 style={[
                   styles.recenteCard,
                   {
-                    backgroundColor: isDark ? colors.backgroundSecondary : "#fff",
+                    backgroundColor: isDark
+                      ? colors.backgroundSecondary
+                      : "#fff",
                     shadowColor: "#000",
                     shadowOpacity: isDark ? 0.12 : 0.05,
                     shadowRadius: 10,
@@ -447,7 +604,9 @@ export function HomeScreen() {
                     { backgroundColor: `${colors.primary}1a` },
                   ]}
                 >
-                  <Text style={[styles.alumnoInicial, { color: colors.primary }]}>
+                  <Text
+                    style={[styles.alumnoInicial, { color: colors.primary }]}
+                  >
                     {inicial}
                   </Text>
                 </View>
@@ -458,7 +617,10 @@ export function HomeScreen() {
                   </Text>
                   {escuelaMeta ? (
                     <Text
-                      style={[styles.recenteMeta, { color: colors.textSecondary }]}
+                      style={[
+                        styles.recenteMeta,
+                        { color: colors.textSecondary },
+                      ]}
                       numberOfLines={1}
                     >
                       {escuelaMeta}
@@ -470,9 +632,14 @@ export function HomeScreen() {
                         style={[styles.nivelPill, { backgroundColor: nivelBg }]}
                       >
                         <View
-                          style={[styles.nivelDot, { backgroundColor: nivelColor }]}
+                          style={[
+                            styles.nivelDot,
+                            { backgroundColor: nivelColor },
+                          ]}
                         />
-                        <Text style={[styles.estadoText, { color: nivelColor }]}>
+                        <Text
+                          style={[styles.estadoText, { color: nivelColor }]}
+                        >
                           Nivel {alumno.nivel_tea} TEA
                         </Text>
                       </View>
@@ -487,7 +654,9 @@ export function HomeScreen() {
                   ]}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.verBtnText, { color: colors.text }]}>Ver</Text>
+                  <Text style={[styles.verBtnText, { color: colors.text }]}>
+                    Ver
+                  </Text>
                 </TouchableOpacity>
               </View>
             );
@@ -499,49 +668,69 @@ export function HomeScreen() {
       </Animated.ScrollView>
 
       {/* ── Bottom Tab Bar ── */}
-      <View style={[
-        styles.tabBar,
-        {
-          backgroundColor: isDark ? colors.background : "#fffc",
-          borderTopWidth: 0,
-          shadowColor: "#000",
-          shadowOpacity: isDark ? 0.25 : 0.08,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: -4 },
-          elevation: 10,
-        }
-      ]}>
+      <View
+        style={[
+          styles.tabBar,
+          {
+            backgroundColor: isDark ? colors.background : "#fffc",
+            borderTopWidth: 0,
+            shadowColor: "#000",
+            shadowOpacity: isDark ? 0.25 : 0.08,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: -4 },
+            elevation: 10,
+          },
+        ]}
+      >
         {TAB_ITEMS.map((tab) => {
           if (tab.isFab) {
             return (
-              <TouchableOpacity key="fab" style={styles.fabContainer} activeOpacity={0.85}>
-                <View style={[
-                  styles.fab,
-                  {
-                    backgroundColor: colors.primary,
-                    shadowColor: colors.primary,
-                    shadowOpacity: 0.35,
-                    shadowRadius: 10,
-                    shadowOffset: { width: 0, height: 4 },
-                    elevation: 8,
-                  }
-                ]}>
+              <TouchableOpacity
+                key="fab"
+                style={styles.fabContainer}
+                activeOpacity={0.85}
+              >
+                <View
+                  style={[
+                    styles.fab,
+                    {
+                      backgroundColor: colors.primary,
+                      shadowColor: colors.primary,
+                      shadowOpacity: 0.35,
+                      shadowRadius: 10,
+                      shadowOffset: { width: 0, height: 4 },
+                      elevation: 8,
+                    },
+                  ]}
+                >
                   <Ionicons name="add" size={28} color="#fff" />
                 </View>
               </TouchableOpacity>
             );
           }
           return (
-            <TouchableOpacity key={tab.name} style={styles.tabItem} activeOpacity={0.7}>
+            <TouchableOpacity
+              key={tab.name}
+              style={styles.tabItem}
+              activeOpacity={0.7}
+            >
               <Ionicons
-                name={tab.active ? (tab.icon === "home" ? "home" : tab.icon) : tab.icon}
+                name={
+                  tab.active
+                    ? tab.icon === "home"
+                      ? "home"
+                      : tab.icon
+                    : tab.icon
+                }
                 size={22}
                 color={tab.active ? colors.primary : colors.tabIconDefault}
               />
               <Text
                 style={[
                   styles.tabLabel,
-                  { color: tab.active ? colors.primary : colors.tabIconDefault },
+                  {
+                    color: tab.active ? colors.primary : colors.tabIconDefault,
+                  },
                 ]}
               >
                 {tab.name}

@@ -6,6 +6,7 @@ export interface UsuarioData {
   nombres: string;
   apellidos: string;
   rol_id: number;
+  correo?: string; // Nuevo campo para la búsqueda
 }
 
 // ─── Verificar si el usuario tiene perfil en la tabla usuarios ────────────────
