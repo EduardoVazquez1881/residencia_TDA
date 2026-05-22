@@ -22,7 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { WebCenteredCard } from "@/components/ui/web/WebCenteredCard";
+
 import { WebDashboardLayout } from "@/components/ui/web/WebDashboardLayout";
 
 export function AlumnoDetailsScreen() {
@@ -157,7 +157,7 @@ export function AlumnoDetailsScreen() {
 
   return (
     <WebDashboardLayout>
-      <WebCenteredCard maxWidth={1000}>
+      <>
         <Stack.Screen options={{ headerShown: false }} />
 
         <View style={styles.header}>
@@ -324,7 +324,7 @@ export function AlumnoDetailsScreen() {
             </View>
           </View>
         </View>
-      </WebCenteredCard>
+      </>
     </WebDashboardLayout>
   );
 }

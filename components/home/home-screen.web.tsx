@@ -4,6 +4,9 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AlumnoData, getAlumnos } from "@/services/alumnos.service";
 import { getCurrentSession } from "@/services/auth.service";
 import { getUsuario, UsuarioData } from "@/services/usuarios.service";
+import { getMisCasos, ListaCasoData } from "@/services/casos.service";
+import { getHistorialBitacoras, HistorialBitacoraData } from "@/services/bitacoras.service";
+import { getPlantillas, PlantillaData } from "@/services/plantillas.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
 import {
@@ -53,6 +56,9 @@ export function HomeScreen() {
 
   const [userData, setUserData] = useState<UsuarioData | null>(null);
   const [alumnos, setAlumnos] = useState<AlumnoData[]>([]);
+  const [casos, setCasos] = useState<ListaCasoData[]>([]);
+  const [bitacoras, setBitacoras] = useState<HistorialBitacoraData[]>([]);
+  const [plantillas, setPlantillas] = useState<PlantillaData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
 
@@ -63,12 +69,18 @@ export function HomeScreen() {
         router.replace("/");
         return;
       }
-      const [user, alumnosList] = await Promise.all([
+      const [user, alumnosList, casosList, bitacorasList, plantillasList] = await Promise.all([
         getUsuario(session.user.id),
         getAlumnos(session.user.id),
+        getMisCasos(session.user.id),
+        getHistorialBitacoras(session.user.id),
+        getPlantillas(session.user.id),
       ]);
       setUserData(user);
       setAlumnos(alumnosList);
+      setCasos(casosList);
+      setBitacoras(bitacorasList);
+      setPlantillas(plantillasList);
     } catch (e) {
       console.error("Error fetching data:", e);
     }
@@ -90,11 +102,34 @@ export function HomeScreen() {
 
   const nombreCompleto = userData ? `${userData.nombres} ${userData.apellidos}` : "Usuario";
 
-  const alumnosFiltrados = searchText.trim()
+  const query = searchText.trim().toLowerCase();
+
+  const alumnosFiltrados = query
     ? alumnos.filter((a) =>
-        a.pseudonimo.toLowerCase().includes(searchText.toLowerCase().trim()),
+        a.pseudonimo.toLowerCase().includes(query),
       )
     : alumnos;
+
+  const casosFiltrados = query
+    ? casos.filter((c) =>
+        c.alumnos?.pseudonimo.toLowerCase().includes(query) ||
+        c.plantillas?.nombre?.toLowerCase().includes(query)
+      )
+    : [];
+
+  const bitacorasFiltradas = query
+    ? bitacoras.filter((b) =>
+        b.casos?.alumnos?.pseudonimo.toLowerCase().includes(query) ||
+        b.plantillas?.nombre?.toLowerCase().includes(query)
+      )
+    : [];
+
+  const plantillasFiltradas = query
+    ? plantillas.filter((p) =>
+        p.nombre.toLowerCase().includes(query) ||
+        p.descripcion?.toLowerCase().includes(query)
+      )
+    : [];
 
   return (
     <WebDashboardLayout>
@@ -203,26 +238,156 @@ export function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            {alumnosFiltrados.length === 0 ? (
+            {query ? (
+              <View style={{ gap: 24 }}>
+                {alumnosFiltrados.length === 0 && casosFiltrados.length === 0 && bitacorasFiltradas.length === 0 && plantillasFiltradas.length === 0 ? (
+                  <View style={[styles.emptyState, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
+                    <Ionicons name="search-outline" size={48} color={colors.textSecondary} style={{ opacity: 0.4, marginBottom: 12 }} />
+                    <Text style={[styles.emptyTitle, { color: colors.text }]}>Sin resultados</Text>
+                    <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
+                      No se encontró ninguna coincidencia con "{searchText}"
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* Alumnos Section */}
+                    {alumnosFiltrados.length > 0 && (
+                      <View>
+                        <Text style={[styles.resultadoSeccionTitle, { color: colors.textSecondary }]}>Alumnos ({alumnosFiltrados.length})</Text>
+                        <View style={styles.alumnosGrid}>
+                          {alumnosFiltrados.map((alumno) => {
+                            const inicial = alumno.pseudonimo.charAt(0).toUpperCase();
+                            const nivelColor = getNivelTeaColor(alumno.nivel_tea);
+                            const nivelBg = getNivelTeaBg(alumno.nivel_tea, isDark);
+                            const escuelaMeta = [
+                              alumno.escuela_actual,
+                              [alumno.grado_escolar, alumno.grupo_escolar].filter(Boolean).join(" - "),
+                            ].filter(Boolean).join(" · ");
+
+                            return (
+                              <View key={alumno.alumno_id} style={[styles.recenteCard, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
+                                <View style={[styles.alumnoAvatar, { backgroundColor: `${colors.primary}1a` }]}>
+                                  <Text style={[styles.alumnoInicial, { color: colors.primary }]}>{inicial}</Text>
+                                </View>
+                                <View style={styles.recenteInfo}>
+                                  <Text style={[styles.recenteName, { color: colors.text }]}>{alumno.pseudonimo}</Text>
+                                  {escuelaMeta ? (
+                                    <Text style={[styles.recenteMeta, { color: colors.textSecondary }]} numberOfLines={1}>{escuelaMeta}</Text>
+                                  ) : null}
+                                  {alumno.nivel_tea ? (
+                                    <View style={styles.estadoRow}>
+                                      <View style={[styles.nivelPill, { backgroundColor: nivelBg }]}>
+                                        <View style={[styles.nivelDot, { backgroundColor: nivelColor }]} />
+                                        <Text style={[styles.estadoText, { color: nivelColor }]}>Nivel {alumno.nivel_tea} TEA</Text>
+                                      </View>
+                                    </View>
+                                  ) : null}
+                                </View>
+                                <TouchableOpacity style={[styles.verBtn, { backgroundColor: isDark ? "#ffffff10" : "#f5f7fa" }]} activeOpacity={0.7} onPress={() => router.push(`/alumno/${alumno.alumno_id}` as any)}>
+                                  <Text style={[styles.verBtnText, { color: colors.text }]}>Ver</Text>
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Expedientes Section */}
+                    {casosFiltrados.length > 0 && (
+                      <View>
+                        <Text style={[styles.resultadoSeccionTitle, { color: colors.textSecondary }]}>Expedientes ({casosFiltrados.length})</Text>
+                        <View style={styles.alumnosGrid}>
+                          {casosFiltrados.map((caso) => (
+                            <View key={caso.caso_id} style={[styles.recenteCard, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
+                              <View style={[styles.alumnoAvatar, { backgroundColor: `rgba(239, 68, 68, 0.1)` }]}>
+                                <Ionicons name="folder-open-outline" size={24} color="#ef4444" />
+                              </View>
+                              <View style={styles.recenteInfo}>
+                                <Text style={[styles.recenteName, { color: colors.text }]}>Expediente de {caso.alumnos?.pseudonimo || "Desconocido"}</Text>
+                                {caso.plantillas?.nombre ? (
+                                  <Text style={[styles.recenteMeta, { color: colors.textSecondary }]} numberOfLines={1}>{caso.plantillas.nombre}</Text>
+                                ) : null}
+                              </View>
+                              <TouchableOpacity style={[styles.verBtn, { backgroundColor: isDark ? "#ffffff10" : "#f5f7fa" }]} activeOpacity={0.7} onPress={() => router.push(`/caso/${caso.caso_id}` as any)}>
+                                <Text style={[styles.verBtnText, { color: colors.text }]}>Ver</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Bitácoras Section */}
+                    {bitacorasFiltradas.length > 0 && (
+                      <View>
+                        <Text style={[styles.resultadoSeccionTitle, { color: colors.textSecondary }]}>Bitácoras ({bitacorasFiltradas.length})</Text>
+                        <View style={styles.alumnosGrid}>
+                          {bitacorasFiltradas.map((bitacora) => (
+                            <View key={bitacora.bitacora_id} style={[styles.recenteCard, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
+                              <View style={[styles.alumnoAvatar, { backgroundColor: `rgba(16, 185, 129, 0.1)` }]}>
+                                <Ionicons name="document-text-outline" size={24} color="#10b981" />
+                              </View>
+                              <View style={styles.recenteInfo}>
+                                <Text style={[styles.recenteName, { color: colors.text }]}>{bitacora.plantillas?.nombre || "Bitácora"}</Text>
+                                <Text style={[styles.recenteMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                                  {bitacora.casos?.alumnos?.pseudonimo || ""} · {bitacora.fecha}
+                                </Text>
+                              </View>
+                              <TouchableOpacity style={[styles.verBtn, { backgroundColor: isDark ? "#ffffff10" : "#f5f7fa" }]} activeOpacity={0.7} onPress={() => router.push("/reportes" as any)}>
+                                <Text style={[styles.verBtnText, { color: colors.text }]}>Ver</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Plantillas Section */}
+                    {plantillasFiltradas.length > 0 && (
+                      <View>
+                        <Text style={[styles.resultadoSeccionTitle, { color: colors.textSecondary }]}>Plantillas ({plantillasFiltradas.length})</Text>
+                        <View style={styles.alumnosGrid}>
+                          {plantillasFiltradas.map((plantilla) => (
+                            <View key={plantilla.plantilla_id} style={[styles.recenteCard, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
+                              <View style={[styles.alumnoAvatar, { backgroundColor: `rgba(2, 132, 199, 0.1)` }]}>
+                                <Ionicons name="copy-outline" size={24} color="#0284c7" />
+                              </View>
+                              <View style={styles.recenteInfo}>
+                                <Text style={[styles.recenteName, { color: colors.text }]}>{plantilla.nombre}</Text>
+                                {plantilla.descripcion ? (
+                                  <Text style={[styles.recenteMeta, { color: colors.textSecondary }]} numberOfLines={1}>{plantilla.descripcion}</Text>
+                                ) : null}
+                              </View>
+                              <TouchableOpacity style={[styles.verBtn, { backgroundColor: isDark ? "#ffffff10" : "#f5f7fa" }]} activeOpacity={0.7} onPress={() => router.push("/mis-plantillas" as any)}>
+                                <Text style={[styles.verBtnText, { color: colors.text }]}>Ver</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+            ) : alumnos.length === 0 ? (
               <View style={[styles.emptyState, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
                 <Ionicons
-                  name={searchText.trim() ? "search-outline" : "people-outline"}
+                  name="people-outline"
                   size={48}
                   color={colors.textSecondary}
                   style={{ opacity: 0.4, marginBottom: 12 }}
                 />
                 <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  {searchText.trim() ? "Sin resultados" : "Sin alumnos aún"}
+                  Sin alumnos aún
                 </Text>
                 <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
-                  {searchText.trim()
-                    ? `No se encontró ningún alumno con "${searchText}"`
-                    : "Registra tu primer alumno desde Expedientes"}
+                  Registra tu primer alumno desde Expedientes
                 </Text>
               </View>
             ) : (
               <View style={styles.alumnosGrid}>
-                {alumnosFiltrados.map((alumno) => {
+                {alumnos.map((alumno) => {
                   const inicial = alumno.pseudonimo.charAt(0).toUpperCase();
                   const nivelColor = getNivelTeaColor(alumno.nivel_tea);
                   const nivelBg = getNivelTeaBg(alumno.nivel_tea, isDark);
@@ -263,7 +428,7 @@ export function HomeScreen() {
                       <TouchableOpacity
                         style={[styles.verBtn, { backgroundColor: isDark ? "#ffffff10" : "#f5f7fa" }]}
                         activeOpacity={0.7}
-                        onPress={() => router.push({ pathname: "/alumno-details", params: { id: alumno.alumno_id } } as any)}
+                        onPress={() => router.push(`/alumno/${alumno.alumno_id}` as any)}
                       >
                         <Text style={[styles.verBtnText, { color: colors.text }]}>Ver</Text>
                       </TouchableOpacity>
@@ -591,5 +756,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingTop: 20,
     borderTopWidth: 1,
+  },
+  resultadoSeccionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 12,
   },
 });

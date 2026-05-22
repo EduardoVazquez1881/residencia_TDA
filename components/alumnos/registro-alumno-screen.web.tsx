@@ -20,7 +20,7 @@ import {
   View,
   ScrollView,
 } from "react-native";
-import { WebCenteredCard } from "@/components/ui/web/WebCenteredCard";
+
 import { WebDashboardLayout } from "@/components/ui/web/WebDashboardLayout";
 
 // ─── Niveles TEA ──────────────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ export function RegistroAlumnoScreen() {
 
   return (
     <WebDashboardLayout>
-      <WebCenteredCard maxWidth={900}>
+      <>
         <Stack.Screen options={{ headerShown: false }} />
 
         <View style={styles.headerRow}>
@@ -277,7 +277,7 @@ export function RegistroAlumnoScreen() {
             </View>
           </View>
         </View>
-      </WebCenteredCard>
+      </>
     </WebDashboardLayout>
   );
 }
