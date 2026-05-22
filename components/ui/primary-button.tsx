@@ -7,6 +7,8 @@ import {
     TouchableOpacity,
     TouchableOpacityProps,
     View,
+    StyleSheet,
+    Platform,
 } from "react-native";
 
 interface PrimaryButtonProps extends TouchableOpacityProps {
@@ -24,17 +26,17 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
   size = "medium",
   icon,
   disabled,
+  style,
   ...props
 }) => {
   const colorScheme = useColorScheme() || "light";
   const colors = Colors[colorScheme as "light" | "dark"];
 
-  const getButtonStyles = () => {
+  const getVariantStyles = () => {
     switch (variant) {
       case "secondary":
         return {
           backgroundColor: colors.secondary,
-          shadowColor: colors.secondary,
         };
       case "outline":
         return {
@@ -45,19 +47,18 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
       default:
         return {
           backgroundColor: colors.primary,
-          shadowColor: colors.primary,
         };
     }
   };
 
-  const getSizeStyles = () => {
+  const getSizePadding = () => {
     switch (size) {
       case "small":
-        return "px-4 py-2";
+        return { paddingHorizontal: 16, paddingVertical: 8 };
       case "large":
-        return "px-6 py-5";
+        return { paddingHorizontal: 24, paddingVertical: 20 };
       default:
-        return "px-6 py-4";
+        return { paddingHorizontal: 24, paddingVertical: 16 };
     }
   };
 
@@ -68,45 +69,54 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
   const getTextSize = () => {
     switch (size) {
       case "small":
-        return "text-sm";
+        return 14;
       case "large":
-        return "text-lg";
+        return 18;
       default:
-        return "text-base";
+        return 16;
     }
   };
 
-  const buttonStyles = getButtonStyles();
+  const shadowStyles = variant !== "outline" ? Platform.select({
+    web: {
+        boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
+    },
+    default: {
+        shadowColor: variant === "secondary" ? colors.secondary : colors.primary,
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 5,
+    }
+  }) : {};
 
   return (
     <TouchableOpacity
       disabled={disabled || loading}
-      style={{
-        ...buttonStyles,
-        opacity: disabled || loading ? 0.6 : 1,
-        ...(variant !== "outline" && {
-          shadowOpacity: 0.25,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 5,
-        }),
-      }}
-      className={`w-full rounded-2xl flex-row justify-center items-center ${getSizeStyles()} ${
-        variant !== "outline" ? "" : "bg-transparent"
-      }`}
+      activeOpacity={0.8}
+      style={[
+        styles.button,
+        getVariantStyles(),
+        getSizePadding(),
+        shadowStyles,
+        { opacity: disabled || loading ? 0.6 : 1 },
+        style,
+      ]}
       {...props}
     >
       {loading ? (
         <ActivityIndicator
           color={getTextColor()}
-          size={size === "small" ? "small" : "large"}
+          size="small"
         />
       ) : (
-        <View className="flex-row items-center justify-center gap-2">
+        <View style={styles.content}>
           {icon}
           <Text
-            className={`font-bold text-center ${getTextSize()}`}
-            style={{ color: getTextColor() }}
+            style={[
+              styles.text,
+              { color: getTextColor(), fontSize: getTextSize(), marginLeft: icon ? 8 : 0 }
+            ]}
           >
             {title}
           </Text>
@@ -115,3 +125,22 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
     </TouchableOpacity>
   );
 };
+
+const styles = StyleSheet.create({
+  button: {
+    width: '100%',
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+});

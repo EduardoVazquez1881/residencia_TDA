@@ -7,6 +7,7 @@ import {
     TextInput as RNTextInput,
     TextInputProps as RNTextInputProps,
     View,
+    StyleSheet,
 } from "react-native";
 
 interface FormInputProps extends RNTextInputProps {
@@ -25,33 +26,35 @@ export const FormInput = React.forwardRef<RNTextInput, FormInputProps>(
     const [isSecure, setIsSecure] = useState(secureTextEntry);
 
     return (
-      <View className="relative">
+      <View style={styles.container}>
         {icon && (
           <Ionicons
             name={icon as any}
             size={20}
             color={colors.primary}
-            style={{ position: "absolute", left: 16, top: 14, zIndex: 1 }}
+            style={styles.icon}
           />
         )}
         <RNTextInput
           ref={ref}
           secureTextEntry={isSecure}
           placeholderTextColor={colors.textSecondary}
-          style={{
-            backgroundColor: colors.input,
-            borderColor: colors.inputBorder,
-            color: colors.text,
-          }}
-          className={`w-full border rounded-2xl p-4 text-base font-medium ${icon ? "pl-12" : ""} ${
-            showPasswordToggle ? "pr-12" : ""
-          }`}
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.input,
+              borderColor: colors.inputBorder,
+              color: colors.text,
+              paddingLeft: icon ? 48 : 16,
+              paddingRight: showPasswordToggle ? 48 : 16,
+            }
+          ]}
           {...props}
         />
         {showPasswordToggle && secureTextEntry && (
           <Pressable
             onPress={() => setIsSecure(!isSecure)}
-            className="absolute right-4 top-4"
+            style={styles.toggleBtn}
           >
             <Ionicons
               name={isSecure ? "eye-off-outline" : "eye-outline"}
@@ -66,3 +69,30 @@ export const FormInput = React.forwardRef<RNTextInput, FormInputProps>(
 );
 
 FormInput.displayName = "FormInput";
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'relative',
+    width: '100%',
+  },
+  icon: {
+    position: "absolute",
+    left: 16,
+    top: 14,
+    zIndex: 1,
+  },
+  input: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  toggleBtn: {
+    position: 'absolute',
+    right: 16,
+    top: 14,
+    zIndex: 1,
+  },
+});

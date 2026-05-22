@@ -722,7 +722,7 @@ export function HomeScreen() {
               }}
             >
               <Ionicons
-                name={tab.active ? tab.icon.replace("-outline", "") : tab.icon}
+                name={(tab.active ? tab.icon.replace("-outline", "") : tab.icon) as any}
                 size={22}
                 color={tab.active ? colors.primary : colors.tabIconDefault}
               />

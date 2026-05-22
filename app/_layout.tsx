@@ -56,6 +56,30 @@ export default function RootLayout() {
           name="nueva-plantilla"
           options={{ headerShown: false }}
         />
+        <Stack.Screen
+          name="alumnos"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="expedientes"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="mis-plantillas"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="reportes"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="perfil"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="seleccion-caso"
+          options={{ headerShown: false }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

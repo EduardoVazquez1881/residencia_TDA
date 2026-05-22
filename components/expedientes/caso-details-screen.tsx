@@ -68,7 +68,7 @@ export function CasoDetailsScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(15)).current;
 
-  const fetchDetalles = async (active: boolean) => {
+  const fetchDetalles = useCallback(async (active: boolean) => {
     const session = await getCurrentSession();
     const uid = session?.user.id || "";
     if (session && active) setCurrentUid(uid);
@@ -90,7 +90,7 @@ export function CasoDetailsScreen() {
         Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
       ]).start();
     }
-  };
+  }, [casoId, fadeAnim, slideAnim]);
 
   useFocusEffect(
     useCallback(() => {
@@ -98,7 +98,7 @@ export function CasoDetailsScreen() {
       setLoading(true);
       fetchDetalles(active);
       return () => { active = false; };
-    }, [casoId])
+    }, [fetchDetalles])
   );
 
   const syncFormState = (data: CasoDetalleData) => {
@@ -350,7 +350,7 @@ export function CasoDetailsScreen() {
              </View>
              
              <View style={{ marginTop: 10 }}>
-               <PrimaryButton title="Invitar / Agregar" onPress={handleAddParticipant} loading={addingParticipant} icon={<Ionicons name="add" size={20} color="#fff" />} color="#8b5cf6" />
+               <PrimaryButton title="Invitar / Agregar" onPress={handleAddParticipant} loading={addingParticipant} icon={<Ionicons name="add" size={20} color="#fff" />} style={{ backgroundColor: "#8b5cf6" }} />
              </View>
           </View>
         )}

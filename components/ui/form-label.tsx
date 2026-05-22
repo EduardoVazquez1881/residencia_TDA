@@ -1,7 +1,7 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import React from "react";
-import { Text, View } from "react-native";
+import { Text, View, StyleSheet } from "react-native";
 
 interface FormLabelProps {
   label: string;
@@ -20,30 +20,47 @@ export const FormLabel: React.FC<FormLabelProps> = ({
   const colors = Colors[colorScheme as "light" | "dark"];
 
   return (
-    <View className="mb-2 ml-1">
-      <View className="flex-row items-center gap-1">
-        <Text className="text-sm font-semibold" style={{ color: colors.text }}>
-          {label}
-        </Text>
+    <View style={styles.container}>
+      <View style={styles.row}>
+        <Text style={[styles.labelText, { color: colors.text }]}>{label}</Text>
         {required && (
-          <Text style={{ color: colors.error }} className="text-base font-bold">
-            *
-          </Text>
+          <Text style={[styles.requiredText, { color: colors.error }]}>*</Text>
         )}
       </View>
-      {error && (
-        <Text
-          className="text-xs font-medium mt-1"
-          style={{ color: colors.error }}
-        >
-          {error}
-        </Text>
-      )}
-      {helperText && !error && (
-        <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-          {helperText}
-        </Text>
-      )}
+      {error ? (
+        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+      ) : helperText ? (
+        <Text style={[styles.helperText, { color: colors.textSecondary }]}>{helperText}</Text>
+      ) : null}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  labelText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  requiredText: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  helperText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+});

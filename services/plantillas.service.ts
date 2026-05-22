@@ -183,6 +183,8 @@ export interface EstructuraCampo {
   etiqueta: string;
   tipo: string;
   requerido: boolean;
+  placeholder: string | null;
+  ayuda: string | null;
   orden: number;
 }
 
