@@ -340,20 +340,33 @@ export function NuevaPlantillaScreenContent() {
       setSaving(false);
 
       if (result.error) {
-        Alert.alert("Error guardando", result.error);
+        if (Platform.OS === 'web') {
+          alert("Error guardando: " + result.error);
+        } else {
+          Alert.alert("Error guardando", result.error);
+        }
       } else {
-        Alert.alert(
-          "Éxito", 
-          isEditing ? "Plantilla actualizada correctamente." : "Plantilla creada correctamente.", 
-          [
-            { text: "Entendido", onPress: () => router.replace("/prueba" as any) }
-          ]
-        );
+        if (Platform.OS === 'web') {
+          alert(isEditing ? "Plantilla actualizada correctamente." : "Plantilla creada correctamente.");
+          router.replace("/mis-plantillas" as any);
+        } else {
+          Alert.alert(
+            "Éxito", 
+            isEditing ? "Plantilla actualizada correctamente." : "Plantilla creada correctamente.", 
+            [
+              { text: "Entendido", onPress: () => router.replace("/mis-plantillas" as any) }
+            ]
+          );
+        }
       }
     } catch (err) {
       console.error("Error saving plantilla:", err);
       setSaving(false);
-      Alert.alert("Error", "Ocurrió un error inesperado al guardar.");
+      if (Platform.OS === 'web') {
+        alert("Error: Ocurrió un error inesperado al guardar.");
+      } else {
+        Alert.alert("Error", "Ocurrió un error inesperado al guardar.");
+      }
     }
   };
 

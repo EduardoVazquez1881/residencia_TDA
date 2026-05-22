@@ -114,17 +114,14 @@ export function RegistroAlumnoScreen() {
       });
 
       if (result.error) {
-        Alert.alert("Error al guardar", result.error);
+        alert("Error al guardar: " + result.error);
         return;
       }
 
-      Alert.alert(
-        "¡Alumno registrado!",
-        `El alumno "${pseudonimo.trim()}" ha sido registrado exitosamente.`,
-        [{ text: "Aceptar", onPress: () => router.back() }],
-      );
+      alert(`¡Alumno registrado!\n\nEl alumno "${pseudonimo.trim()}" ha sido registrado exitosamente.`);
+      router.replace("/alumnos" as any);
     } catch {
-      Alert.alert("Error", "No se pudo guardar el alumno.");
+      alert("Error: No se pudo guardar el alumno.");
     } finally {
       setLoading(false);
     }
@@ -307,11 +304,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: "800",
+    letterSpacing: -1,
   },
   headerSub: {
-    fontSize: 14,
+    fontSize: 16,
+    marginTop: 4,
   },
   headerIcon: {
     width: 44,

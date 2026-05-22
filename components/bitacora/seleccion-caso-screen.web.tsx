@@ -123,6 +123,7 @@ const styles = StyleSheet.create({
   casoCard: {
     width: 'calc(33.333% - 16px)' as any,
     minWidth: 320,
+    maxWidth: '100%',
     flexDirection: "row",
     alignItems: "center",
     padding: 24,

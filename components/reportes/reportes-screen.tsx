@@ -2,6 +2,7 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { getCurrentSession } from "@/services/auth.service";
 import { getHistorialBitacoras, HistorialBitacoraData } from "@/services/bitacoras.service";
+import { supabase } from "@/supabaseconfig";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { BitacoraPDFViewer } from "@/components/pdf/BitacoraPDFViewer";
 
 export function ReportesScreen() {
   const colorScheme = useColorScheme() || "light";
@@ -24,6 +26,9 @@ export function ReportesScreen() {
   const [historial, setHistorial] = useState<HistorialBitacoraData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [casosTerapeuta, setCasosTerapeuta] = useState<Set<number>>(new Set());
+  const [pdfBitacoraId, setPdfBitacoraId] = useState<number | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
@@ -32,7 +37,24 @@ export function ReportesScreen() {
     try {
       const session = await getCurrentSession();
       if (!session) return;
-      const data = await getHistorialBitacoras(session.user.id);
+      const uid = session.user.id;
+      setCurrentUserId(uid);
+
+      const [data, partRes] = await Promise.all([
+        getHistorialBitacoras(uid),
+        supabase
+          .from("caso_participantes")
+          .select("caso_id, rol_en_caso")
+          .eq("usuario_id", uid)
+      ]);
+
+      const therapistCases = new Set<number>(
+        partRes.data
+          ?.filter((p: any) => p.rol_en_caso?.toLowerCase().includes("terapeuta"))
+          .map((p: any) => p.caso_id) || []
+      );
+
+      setCasosTerapeuta(therapistCases);
       setHistorial(data);
     } catch (e) {
       console.error("Error fetching bitacoras history:", e);
@@ -64,6 +86,10 @@ export function ReportesScreen() {
       year: "numeric"
     });
 
+    const isOwner = item.casos?.usuario_id === currentUserId;
+    const isCreator = item.casos?.creado_por === currentUserId;
+    const isTerapeuta = isOwner || isCreator || (item.caso_id ? casosTerapeuta.has(item.caso_id) : false);
+
     return (
       <TouchableOpacity
         activeOpacity={0.7}
@@ -81,10 +107,37 @@ export function ReportesScreen() {
         ]}
       >
         <View style={styles.cardHeader}>
-          <View style={[styles.statusBadge, { backgroundColor: item.estado === "completado" ? "#10b98120" : "#f59e0b20" }]}>
-            <View style={[styles.statusDot, { backgroundColor: item.estado === "completado" ? "#10b981" : "#f59e0b" }]} />
-            <Text style={[styles.statusText, { color: item.estado === "completado" ? "#10b981" : "#f59e0b" }]}>
-              {item.estado.toUpperCase()}
+          <View style={[
+            styles.statusBadge, 
+            { 
+              backgroundColor: item.estado === "revisado" 
+                ? "#3b82f620" 
+                : item.estado === "devuelta"
+                ? "#ef444420"
+                : (item.estado === "completado" ? "#10b98120" : "#f59e0b20") 
+            }
+          ]}>
+            <View style={[
+              styles.statusDot, 
+              { 
+                backgroundColor: item.estado === "revisado" 
+                  ? "#3b82f6" 
+                  : item.estado === "devuelta"
+                  ? "#ef4444"
+                  : (item.estado === "completado" ? "#10b981" : "#f59e0b") 
+              }
+            ]} />
+            <Text style={[
+              styles.statusText, 
+              { 
+                color: item.estado === "revisado" 
+                  ? "#3b82f6" 
+                  : item.estado === "devuelta"
+                  ? "#ef4444"
+                  : (item.estado === "completado" ? "#10b981" : "#f59e0b") 
+              }
+            ]}>
+              {item.estado === "revisado" ? "REVISADO" : item.estado === "devuelta" ? "DEVUELTA" : item.estado.toUpperCase()}
             </Text>
           </View>
           <Text style={[styles.dateText, { color: colors.textSecondary }]}>{fechaPretty}</Text>
@@ -113,9 +166,26 @@ export function ReportesScreen() {
                {item.hora_entrada?.slice(0, 5) || "--:--"} - {item.hora_salida?.slice(0, 5) || "--:--"}
              </Text>
           </View>
-          <View style={[styles.btnModificar, { backgroundColor: colors.primary + "15" }]}>
-             <Ionicons name="pencil-outline" size={14} color={colors.primary} />
-             <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "700", marginLeft: 4 }}>Modificar</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {/* Botón PDF — solo para bitácoras revisadas */}
+            {item.estado === "revisado" && (
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  setPdfBitacoraId(item.bitacora_id);
+                }}
+                style={[styles.btnModificar, { backgroundColor: "#ef444415", paddingHorizontal: 8 }]}
+              >
+                <Ionicons name="document-text-outline" size={14} color="#ef4444" />
+                <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "700", marginLeft: 4 }}>PDF</Text>
+              </TouchableOpacity>
+            )}
+            <View style={[styles.btnModificar, { backgroundColor: isTerapeuta ? "#3b82f615" : colors.primary + "15" }]}>
+               <Ionicons name={isTerapeuta ? "eye-outline" : "pencil-outline"} size={14} color={isTerapeuta ? "#3b82f6" : colors.primary} />
+               <Text style={{ color: isTerapeuta ? "#3b82f6" : colors.primary, fontSize: 12, fontWeight: "700", marginLeft: 4 }}>
+                 {isTerapeuta ? "Revisar" : "Modificar"}
+               </Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -167,6 +237,14 @@ export function ReportesScreen() {
             </View>
           }
           renderItem={renderBitacoraItem}
+        />
+      )}
+      {/* Modal generación PDF */}
+      {pdfBitacoraId !== null && (
+        <BitacoraPDFViewer
+          bitacoraId={pdfBitacoraId}
+          visible={pdfBitacoraId !== null}
+          onClose={() => setPdfBitacoraId(null)}
         />
       )}
     </View>

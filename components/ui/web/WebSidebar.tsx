@@ -5,13 +5,15 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Link, usePathname, router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { logout } from '@/services/auth.service';
+import { useNotificacionesContext } from '@/context/notificaciones-context';
 
 const MENU_ITEMS = [
   { name: 'Inicio', icon: 'home-outline', route: '/prueba' },
   { name: 'Expedientes', icon: 'folder-open-outline', route: '/expedientes' },
   { name: 'Alumnos', icon: 'people-outline', route: '/alumnos' },
   { name: 'Plantillas', icon: 'document-text-outline', route: '/mis-plantillas' },
-  { name: 'Reportes', icon: 'bar-chart-outline', route: '/reportes' },
+  { name: 'Historial Bitácoras', icon: 'reader-outline', route: '/reportes' },
+  { name: 'Notificaciones', icon: 'notifications-outline', route: '/notificaciones' },
   { name: 'Perfil', icon: 'person-circle-outline', route: '/perfil' },
 ];
 
@@ -21,9 +23,10 @@ interface MenuItemProps {
   isCollapsed: boolean;
   colors: any;
   isDark: boolean;
+  badgeCount?: number;
 }
 
-const MenuItem = ({ item, isActive, isCollapsed, colors, isDark }: MenuItemProps) => {
+const MenuItem = ({ item, isActive, isCollapsed, colors, isDark, badgeCount }: MenuItemProps) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -42,21 +45,35 @@ const MenuItem = ({ item, isActive, isCollapsed, colors, isDark }: MenuItemProps
           isActive && { borderRightColor: colors.primary, borderRightWidth: 3 }
         ])}
       >
-        <Ionicons 
-          name={item.icon as any} 
-          size={22} 
-          color={isActive ? colors.primary : (isHovered ? colors.primary : colors.textSecondary)} 
-        />
+        <View style={styles.menuIconContainer}>
+          <Ionicons 
+            name={item.icon as any} 
+            size={22} 
+            color={isActive ? colors.primary : (isHovered ? colors.primary : colors.textSecondary)} 
+          />
+          {badgeCount !== undefined && badgeCount > 0 && isCollapsed && (
+            <View style={[styles.badgeCollapsed, { backgroundColor: colors.error }]}>
+              <Text style={styles.badgeTextCollapsed}>{badgeCount}</Text>
+            </View>
+          )}
+        </View>
         {!isCollapsed && (
-          <Text style={[
-            styles.menuText,
-            { 
-              color: isActive ? colors.primary : (isHovered ? colors.text : colors.textSecondary), 
-              fontWeight: isActive ? '700' : '500' 
-            }
-          ]}>
-            {item.name}
-          </Text>
+          <View style={styles.menuTextContainer}>
+            <Text style={[
+              styles.menuText,
+              { 
+                color: isActive ? colors.primary : (isHovered ? colors.text : colors.textSecondary), 
+                fontWeight: isActive ? '700' : '500' 
+              }
+            ]}>
+              {item.name}
+            </Text>
+            {badgeCount !== undefined && badgeCount > 0 && (
+              <View style={[styles.badge, { backgroundColor: colors.error }]}>
+                <Text style={styles.badgeText}>{badgeCount}</Text>
+              </View>
+            )}
+          </View>
         )}
       </TouchableOpacity>
     </Link>
@@ -69,6 +86,9 @@ export const WebSidebar = () => {
   const isDark = colorScheme === 'dark';
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Consumir el conteo global de no leídos
+  const { unreadCount } = useNotificacionesContext();
 
   const handleLogout = async () => {
     try {
@@ -125,6 +145,7 @@ export const WebSidebar = () => {
             isCollapsed={isCollapsed}
             colors={colors}
             isDark={isDark}
+            badgeCount={item.name === 'Notificaciones' ? unreadCount : undefined}
           />
         ))}
       </View>
@@ -210,8 +231,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 0,
   },
+  menuIconContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuTextContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   menuText: {
     fontSize: 14,
+  },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  badgeCollapsed: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 8,
+    minWidth: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeTextCollapsed: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '800',
   },
   footer: {
     padding: 24,

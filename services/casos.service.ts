@@ -308,5 +308,29 @@ export async function agregarParticipanteExistente(
     return { error: error.message };
   }
 
+  // Notificar al participante asignado en segundo plano
+  (async () => {
+    try {
+      const { crearNotificacion } = await import("@/services/notificaciones.service");
+      const { data: casoData } = await supabase
+        .from("casos")
+        .select("alumnos(pseudonimo)")
+        .eq("caso_id", casoId)
+        .single();
+        
+      const pseudonimo = (casoData as any)?.alumnos?.pseudonimo || "un alumno";
+      
+      await crearNotificacion(
+        uid,
+        "Asignación a Caso",
+        `Has sido asignado como ${rol} para el caso del alumno ${pseudonimo}.`,
+        "caso_asignado",
+        casoId.toString()
+      );
+    } catch (err) {
+      console.error("Error al notificar asignación de participante:", err);
+    }
+  })();
+
   return { error: null };
 }

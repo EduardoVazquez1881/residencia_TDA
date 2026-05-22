@@ -140,16 +140,15 @@ export function CrearCasoScreen() {
       });
 
       if (res.error) {
-        Alert.alert("Error al crear", res.error);
+        alert("Error al crear: " + res.error);
         return;
       }
 
-      Alert.alert("¡Éxito!", "El caso fue creado y asignado exitosamente.", [
-        { text: "Aceptar", onPress: () => router.replace('/expedientes') }
-      ]);
+      alert("¡Éxito!\n\nEl caso fue creado y asignado exitosamente.");
+      router.replace('/expedientes');
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "No se pudo crear el caso.");
+      alert("Error: No se pudo crear el caso.");
     } finally {
       setLoading(false);
     }
@@ -496,13 +495,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "800",
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
   headerSub: {
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: 16,
+    marginTop: 4,
   },
   mainGrid: {
     flexDirection: 'row',

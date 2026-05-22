@@ -159,7 +159,7 @@ export function RegistroAlumnoScreen() {
       Alert.alert(
         "¡Alumno registrado!",
         `El alumno "${pseudonimo.trim()}" ha sido registrado exitosamente.`,
-        [{ text: "Aceptar", onPress: () => router.back() }],
+        [{ text: "Aceptar", onPress: () => router.replace("/alumnos" as any) }],
       );
     } catch {
       Alert.alert("Error", "No se pudo guardar el alumno.");

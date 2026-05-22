@@ -83,7 +83,7 @@ export function MisPlantillasScreen() {
 
       <View style={styles.header}>
         <View>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Mis Plantillas (WEB)</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Mis Plantillas</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             Gestiona los formatos de tus sesiones
           </Text>
@@ -255,6 +255,7 @@ const styles = StyleSheet.create({
   card: {
     width: 'calc(50% - 12px)' as any,
     minWidth: 400,
+    maxWidth: '100%',
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,

@@ -5,7 +5,7 @@ import { PrimaryButton } from "@/components/ui/primary-button";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { getCurrentSession } from "@/services/auth.service";
-import { crearBitacoraCompleta, getBitacoraConRespuestas, actualizarBitacoraCompleta } from "@/services/bitacoras.service";
+import { crearBitacoraCompleta, getBitacoraConRespuestas, actualizarBitacoraCompleta, revisarBitacora } from "@/services/bitacoras.service";
 import { getCasoDetalle, CasoDetalleData } from "@/services/casos.service";
 import { getPlantillaEstructura, PlantillaEstructura } from "@/services/plantillas.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -53,17 +53,39 @@ export function NuevaBitacoraScreenContent() {
   // DateTimePicker modals state
   const [showPicker, setShowPicker] = useState<string | number | null>(null);
 
+  // Revision / Evaluation states
+  const [isTerapeuta, setIsTerapeuta] = useState(false);
+  const [notasRevision, setNotasRevision] = useState("");
+  const [revisadoPorName, setRevisadoPorName] = useState<string | null>(null);
+  const [fechaRevision, setFechaRevision] = useState<string | null>(null);
+  const [savingRevision, setSavingRevision] = useState(false);
+  const [estadoBitacora, setEstadoBitacora] = useState<string>("borrador");
+  const [creadoPorId, setCreadoPorId] = useState<string | null>(null);
+
+  const shouldLockForm = estadoBitacora === 'revisado' || (isTerapeuta && bid !== null);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [cData, pData] = await Promise.all([
+        const [cData, pData, session] = await Promise.all([
           getCasoDetalle(cid),
-          getPlantillaEstructura(pid)
+          getPlantillaEstructura(pid),
+          getCurrentSession()
         ]);
         setCaso(cData);
         setPlantilla(pData);
+
+        const currentUserId = session?.user?.id || null;
+        if (cData && currentUserId) {
+          const isOwner = cData.usuario_id === currentUserId;
+          const isCreator = cData.creado_por === currentUserId;
+          const isPartTerapeuta = cData.participantes?.some(
+            (p: any) => p.usuario?.usuario_id === currentUserId && p.rol_en_caso?.toLowerCase().includes("terapeuta")
+          ) || false;
+          setIsTerapeuta(isOwner || isCreator || isPartTerapeuta);
+        }
 
         // Si es edición, cargar datos guardados
         if (bid) {
@@ -94,6 +116,23 @@ export function NuevaBitacoraScreenContent() {
               hashResp[r.campo_id] = r.valor;
             });
             setRespuestas(hashResp);
+
+            // Sincronizar revisión
+            setNotasRevision(bitData.notas_revision || "");
+            setEstadoBitacora(bitData.estado || "borrador");
+            setCreadoPorId(bitData.creado_por || bitData.sombra_id || null);
+            
+            if (bitData.revisado_por_user) {
+              const revName = `${bitData.revisado_por_user.nombres} ${bitData.revisado_por_user.apellidos}`;
+              setRevisadoPorName(revName);
+            } else {
+              setRevisadoPorName(null);
+            }
+            if (bitData.fecha_revision) {
+              setFechaRevision(new Date(bitData.fecha_revision).toLocaleDateString());
+            } else {
+              setFechaRevision(null);
+            }
           }
         }
       } catch (err) {
@@ -164,11 +203,78 @@ export function NuevaBitacoraScreenContent() {
     setSaving(false);
 
     if (res.error) {
-      Alert.alert("Error guardando", res.error);
+      if (Platform.OS === 'web') {
+        alert("Error guardando: " + res.error);
+      } else {
+        Alert.alert("Error guardando", res.error);
+      }
     } else {
-      Alert.alert("Éxito", bid ? "Cambios guardados correctamente." : "Bitácora creada y registrada exitosamente.", [
-        { text: "Entendido", onPress: () => router.navigate(bid ? "/reportes" : "/prueba" as any) }
-      ]);
+      if (Platform.OS === 'web') {
+        alert(bid ? "Cambios guardados correctamente." : "Bitácora creada y registrada exitosamente.");
+        router.replace("/reportes" as any);
+      } else {
+        Alert.alert("Éxito", bid ? "Cambios guardados correctamente." : "Bitácora creada y registrada exitosamente.", [
+          { text: "Entendido", onPress: () => router.navigate(bid ? "/reportes" : "/prueba" as any) }
+        ]);
+      }
+    }
+  };
+
+  const handleRevisar = async (nuevoEstado: 'revisado' | 'devuelta') => {
+    if (!bid) return;
+    
+    const session = await getCurrentSession();
+    if (!session?.user?.id) {
+      if (Platform.OS === 'web') {
+        alert("Error: No se detectó sesión de usuario activa.");
+      } else {
+        Alert.alert("Error", "No se detectó sesión de usuario activa.");
+      }
+      return;
+    }
+
+    setSavingRevision(true);
+    const { error } = await revisarBitacora(bid, {
+      revisado_por: session.user.id,
+      notas_revision: notasRevision.trim(),
+      estado: nuevoEstado
+    });
+    setSavingRevision(false);
+
+    if (error) {
+      if (Platform.OS === 'web') {
+        alert("Error al guardar revisión: " + error);
+      } else {
+        Alert.alert("Error", "Error al guardar revisión: " + error);
+      }
+    } else {
+      // Enviar notificaciones por roles
+      try {
+        const { notificarRevisionBitacora } = await import("@/services/notificaciones.service");
+        await notificarRevisionBitacora(
+          cid,
+          bid,
+          creadoPorId || "",
+          session.user.id,
+          nuevoEstado,
+          notasRevision
+        );
+      } catch (e) {
+        console.error("Error al enviar notificaciones de revisión:", e);
+      }
+
+      const msg = nuevoEstado === 'revisado' 
+        ? "La bitácora ha sido revisada y aprobada." 
+        : "La bitácora ha sido devuelta a la sombra.";
+      
+      if (Platform.OS === 'web') {
+        alert(msg);
+        router.replace("/reportes" as any);
+      } else {
+        Alert.alert("Éxito", msg, [
+          { text: "Entendido", onPress: () => router.navigate("/reportes" as any) }
+        ]);
+      }
     }
   };
 
@@ -190,7 +296,10 @@ export function NuevaBitacoraScreenContent() {
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         <TouchableOpacity 
           style={[styles.pickerBtn, { backgroundColor: isDark ? "#ffffff10" : "#f1f5f9" }]} 
-          onPress={() => setShowPicker(mode)}
+          onPress={() => {
+            if (!shouldLockForm) setShowPicker(mode);
+          }}
+          disabled={shouldLockForm}
         >
           <Ionicons name={mode === "fecha" ? "calendar-outline" : "time-outline"} size={16} color={colors.primary} />
           <Text style={{ color: isSet ? colors.text : colors.textSecondary, marginLeft: 6, fontWeight: "500", fontSize: 13 }}>
@@ -200,7 +309,12 @@ export function NuevaBitacoraScreenContent() {
         {clear && isSet && (
           <TouchableOpacity 
             style={{ padding: 8, marginLeft: 4 }} 
-            onPress={() => mode === "entrada" ? setHoraEntrada(null) : setHoraSalida(null)}
+            onPress={() => {
+              if (!shouldLockForm) {
+                mode === "entrada" ? setHoraEntrada(null) : setHoraSalida(null);
+              }
+            }}
+            disabled={shouldLockForm}
           >
             <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -252,7 +366,13 @@ export function NuevaBitacoraScreenContent() {
           </View>
 
           <FormLabel label="Contexto Adicional (Opcional)" />
-          <FormTextArea placeholder="Ej. El día estuvo muy lluvioso..." value={contexto} onChangeText={setContexto} minHeight={60} />
+          <FormTextArea 
+            placeholder="Ej. El día estuvo muy lluvioso..." 
+            value={contexto} 
+            onChangeText={setContexto} 
+            minHeight={60} 
+            editable={!shouldLockForm} 
+          />
         </View>
 
         {/* MOTOR DINÁMICO */}
@@ -277,20 +397,40 @@ export function NuevaBitacoraScreenContent() {
                     </View>
 
                     {campo.tipo === "texto" && (
-                      <FormInput placeholder={campo.placeholder || "Escribe aquí..."} value={currentVal} onChangeText={(t) => updateRespuesta(campo.campo_id, t)} />
+                      <FormInput 
+                        placeholder={campo.placeholder || "Escribe aquí..."} 
+                        value={currentVal} 
+                        onChangeText={(t) => updateRespuesta(campo.campo_id, t)} 
+                        editable={!shouldLockForm}
+                      />
                     )}
 
                     {campo.tipo === "textarea" && (
-                      <FormTextArea placeholder={campo.placeholder || "Escribe aquí..."} value={currentVal} onChangeText={(t) => updateRespuesta(campo.campo_id, t)} minHeight={80} />
+                      <FormTextArea 
+                        placeholder={campo.placeholder || "Escribe aquí..."} 
+                        value={currentVal} 
+                        onChangeText={(t) => updateRespuesta(campo.campo_id, t)} 
+                        minHeight={80} 
+                        editable={!shouldLockForm}
+                      />
                     )}
 
                     {campo.tipo === "numero" && (
-                      <FormInput placeholder={campo.placeholder || "0"} value={currentVal} onChangeText={(t) => updateRespuesta(campo.campo_id, t)} keyboardType="numeric" />
+                      <FormInput 
+                        placeholder={campo.placeholder || "0"} 
+                        value={currentVal} 
+                        onChangeText={(t) => updateRespuesta(campo.campo_id, t)} 
+                        keyboardType="numeric" 
+                        editable={!shouldLockForm}
+                      />
                     )}
 
                     {campo.tipo === "fecha" && (
                       <TouchableOpacity 
-                        onPress={() => setShowPicker(campo.campo_id)}
+                        onPress={() => {
+                          if (!shouldLockForm) setShowPicker(campo.campo_id);
+                        }}
+                        disabled={shouldLockForm}
                         style={[styles.pickerBtn, { backgroundColor: isDark ? "#ffffff10" : "#f1f5f9", flex: 0, width: "100%" }]}
                       >
                         <Ionicons name="calendar-outline" size={18} color={colors.primary} />
@@ -302,7 +442,12 @@ export function NuevaBitacoraScreenContent() {
 
                     {campo.tipo === "checkbox" && (
                       <TouchableOpacity 
-                        onPress={() => updateRespuesta(campo.campo_id, currentVal === "true" ? "false" : "true")}
+                        onPress={() => {
+                          if (!shouldLockForm) {
+                            updateRespuesta(campo.campo_id, currentVal === "true" ? "false" : "true");
+                          }
+                        }}
+                        disabled={shouldLockForm}
                         style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 5 }}
                       >
                         <Ionicons 
@@ -321,14 +466,18 @@ export function NuevaBitacoraScreenContent() {
                           return (
                             <TouchableOpacity
                               key={op.opcion_id}
-                              onPress={() => updateRespuesta(campo.campo_id, op.valor)}
+                              onPress={() => {
+                                if (!shouldLockForm) updateRespuesta(campo.campo_id, op.valor);
+                              }}
+                              disabled={shouldLockForm}
                               style={{
                                 paddingHorizontal: 14,
                                 paddingVertical: 10,
                                 borderRadius: 10,
                                 backgroundColor: isSelected ? colors.primary : (isDark ? "#ffffff10" : "#f1f5f9"),
                                 borderWidth: 1,
-                                borderColor: isSelected ? colors.primary : "transparent"
+                                borderColor: isSelected ? colors.primary : "transparent",
+                                opacity: (shouldLockForm && !isSelected) ? 0.5 : 1
                               }}
                             >
                               <Text style={{ color: isSelected ? "#fff" : colors.textSecondary, fontWeight: isSelected ? "bold" : "500", fontSize: 13 }}>
@@ -346,7 +495,184 @@ export function NuevaBitacoraScreenContent() {
           ))}
         </View>
 
-        <PrimaryButton title={bid ? "Guardar Cambios" : "Guardar Bitácora"} onPress={handleGuardar} loading={saving} />
+        {/* VISTA DE REVISIÓN PARA NO-TERAPEUTAS O COMO LECTURA */}
+        {bid !== null && !isTerapeuta && (estadoBitacora === 'revisado' || estadoBitacora === 'devuelta' || notasRevision || revisadoPorName) && (
+          <View style={[styles.card, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff", shadowOpacity: isDark ? 0.15 : 0.05 }]}>
+            <Text style={[styles.revisionTitle, { color: colors.text }]}>Revisión del Terapeuta</Text>
+            
+            <View style={[
+              styles.revisionBadge, 
+              { 
+                backgroundColor: estadoBitacora === 'revisado' 
+                  ? (isDark ? "#3b82f620" : "#eff6ff") 
+                  : estadoBitacora === 'devuelta'
+                  ? (isDark ? "#ef444420" : "#fef2f2")
+                  : (isDark ? "#e2e8f010" : "#f1f5f9"), 
+                borderColor: estadoBitacora === 'revisado' 
+                  ? (isDark ? "#3b82f650" : "#bfdbfe") 
+                  : estadoBitacora === 'devuelta'
+                  ? (isDark ? "#ef444450" : "#fee2e2")
+                  : "transparent", 
+                borderWidth: (estadoBitacora === 'revisado' || estadoBitacora === 'devuelta') ? 1 : 0 
+              }
+            ]}>
+              <Text style={{ 
+                color: estadoBitacora === 'revisado' 
+                  ? (isDark ? "#93c5fd" : "#2563eb") 
+                  : estadoBitacora === 'devuelta'
+                  ? (isDark ? "#fca5a5" : "#ef4444")
+                  : colors.textSecondary, 
+                fontWeight: "700", 
+                fontSize: 11 
+              }}>
+                {estadoBitacora === 'revisado' 
+                  ? "REVISADO Y APROBADO" 
+                  : estadoBitacora === 'devuelta' 
+                  ? "DEVUELTA / OBSERVADA" 
+                  : "PENDIENTE DE REVISIÓN"}
+              </Text>
+            </View>
+
+            {revisadoPorName && (
+              <Text style={{ fontSize: 14, color: colors.text, marginBottom: 4 }}>
+                <Text style={{ fontWeight: "700" }}>Revisado por:</Text> {revisadoPorName}
+              </Text>
+            )}
+
+            {fechaRevision && (
+              <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 12 }}>
+                <Text style={{ fontWeight: "700" }}>Fecha de revisión:</Text> {fechaRevision}
+              </Text>
+            )}
+
+            <FormLabel label="Notas de Evaluación / Observaciones" />
+            <View style={{ 
+              padding: 14, 
+              borderRadius: 12, 
+              backgroundColor: isDark ? "#ffffff05" : "#f8fafc", 
+              borderWidth: 1, 
+              borderColor: isDark ? "#ffffff10" : "#e2e8f0" 
+            }}>
+              <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20 }}>
+                {notasRevision || "Sin observaciones registradas."}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* TARJETA DE REVISIÓN DEL TERAPEUTA */}
+        {bid !== null && isTerapeuta && (
+          <View style={[styles.card, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff", shadowOpacity: isDark ? 0.15 : 0.05 }]}>
+            <Text style={[styles.revisionTitle, { color: colors.text }]}>Evaluación / Revisión de Terapeuta</Text>
+            
+            <View style={{ flexDirection: "row", gap: 10, marginBottom: 15, alignItems: "center" }}>
+              <View style={[
+                styles.revisionBadge, 
+                { 
+                  backgroundColor: estadoBitacora === 'revisado' 
+                    ? (isDark ? "#3b82f620" : "#eff6ff") 
+                    : estadoBitacora === 'devuelta'
+                    ? (isDark ? "#ef444420" : "#fef2f2")
+                    : (isDark ? "#e2e8f010" : "#f1f5f9"), 
+                  borderColor: estadoBitacora === 'revisado' 
+                    ? (isDark ? "#3b82f650" : "#bfdbfe") 
+                    : estadoBitacora === 'devuelta'
+                    ? (isDark ? "#ef444450" : "#fee2e2")
+                    : "transparent",
+                  borderWidth: (estadoBitacora === 'revisado' || estadoBitacora === 'devuelta') ? 1 : 0,
+                  marginBottom: 0
+                }
+              ]}>
+                <Text style={{ 
+                  color: estadoBitacora === 'revisado' 
+                    ? (isDark ? "#93c5fd" : "#2563eb") 
+                    : estadoBitacora === 'devuelta'
+                    ? (isDark ? "#fca5a5" : "#ef4444")
+                    : colors.textSecondary, 
+                  fontWeight: "700", 
+                  fontSize: 11 
+                }}>
+                  {estadoBitacora === 'revisado' 
+                    ? "REVISADO Y APROBADO" 
+                    : estadoBitacora === 'devuelta' 
+                    ? "DEVUELTA / OBSERVADA" 
+                    : "PENDIENTE DE REVISIÓN"}
+                </Text>
+              </View>
+
+              {revisadoPorName && (
+                <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                  Por: {revisadoPorName}
+                </Text>
+              )}
+            </View>
+
+            <FormLabel label="Notas de Evaluación / Observaciones" />
+            <FormTextArea 
+              placeholder="Escribe aquí las observaciones, notas de revisión o retroalimentación..." 
+              value={notasRevision} 
+              onChangeText={setNotasRevision} 
+              minHeight={100} 
+            />
+
+            <View style={styles.revisionRow}>
+              {/* Devolver a Borrador */}
+              <TouchableOpacity 
+                style={[
+                  styles.revisionBtn, 
+                  { 
+                    backgroundColor: isDark ? "#ef444420" : "#fef2f2",
+                    borderColor: isDark ? "#ef444450" : "#fee2e2",
+                    borderWidth: 1
+                  }
+                ]} 
+                onPress={() => handleRevisar('devuelta')}
+                disabled={savingRevision}
+              >
+                {savingRevision ? (
+                  <ActivityIndicator size="small" color={isDark ? "#fca5a5" : "#ef4444"} />
+                ) : (
+                  <>
+                    <Ionicons name="arrow-undo-outline" size={18} color={isDark ? "#fca5a5" : "#ef4444"} />
+                    <Text style={[styles.revisionBtnText, { color: isDark ? "#fca5a5" : "#ef4444" }]}>Devolver Bitácora</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Aprobar / Revisado */}
+              <TouchableOpacity 
+                style={[
+                  styles.revisionBtn, 
+                  { 
+                    backgroundColor: colors.primary 
+                  }
+                ]} 
+                onPress={() => handleRevisar('revisado')}
+                disabled={savingRevision}
+              >
+                {savingRevision ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                    <Text style={styles.revisionBtnText}>Aprobar / Revisado</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {isTerapeuta && bid !== null ? null : estadoBitacora !== 'revisado' ? (
+          <PrimaryButton title={bid ? "Guardar Cambios" : "Guardar Bitácora"} onPress={handleGuardar} loading={saving} />
+        ) : (
+          <View style={[styles.infoBanner, { backgroundColor: isDark ? "#1e3a8a30" : "#eff6ff", borderColor: isDark ? "#1e40af" : "#bfdbfe" }]}>
+            <Ionicons name="checkmark-circle" size={20} color={isDark ? "#60a5fa" : "#2563eb"} />
+            <Text style={[styles.infoBannerText, { color: isDark ? "#93c5fd" : "#1d4ed8" }]}>
+              Esta bitácora ya ha sido revisada y aprobada. No se permiten más modificaciones en las respuestas.
+            </Text>
+          </View>
+        )}
         <View style={{ height: 60 }} />
 
       </Animated.ScrollView>
@@ -431,4 +757,12 @@ const styles = StyleSheet.create({
   secTitleBox: { padding: 12, borderRadius: 12, marginBottom: 15 },
   secTitle: { fontSize: 16, fontWeight: "800" },
   dinamicField: { marginBottom: 20 },
+
+  revisionTitle: { fontSize: 18, fontWeight: "800", marginBottom: 12 },
+  revisionBadge: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginBottom: 15 },
+  revisionRow: { flexDirection: "row", gap: 12, marginTop: 15 },
+  revisionBtn: { flex: 1, height: 48, borderRadius: 14, justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 6 },
+  revisionBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  infoBanner: { padding: 16, borderRadius: 16, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
+  infoBannerText: { flex: 1, fontSize: 14, fontWeight: "500", lineHeight: 20 },
 });

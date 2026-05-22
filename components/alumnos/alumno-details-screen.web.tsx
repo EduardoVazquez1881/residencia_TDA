@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 16,
   },
-  headerTitle: { fontSize: 24, fontWeight: "800" },
+  headerTitle: { fontSize: 32, fontWeight: "800", letterSpacing: -1 },
   editBtn: {
     flexDirection: "row",
     alignItems: "center",

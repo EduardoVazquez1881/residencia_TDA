@@ -9,12 +9,18 @@ import "react-native-reanimated";
 import "../global.css";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { NotificacionesProvider } from "@/context/notificaciones-context";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
+  // Registrar notificaciones push en móviles
+  usePushNotifications();
+
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <NotificacionesProvider>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack>
         {/* Pantalla principal con demo de Tailwind y Supabase */}
         <Stack.Screen
@@ -83,5 +89,6 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
+    </NotificacionesProvider>
   );
 }

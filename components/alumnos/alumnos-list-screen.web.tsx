@@ -63,7 +63,7 @@ export function AlumnosListScreen() {
 
       <View style={styles.header}>
         <View>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Mis Alumnos (WEB)</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Mis Alumnos</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             Lista de alumnos bajo tu seguimiento
           </Text>
@@ -220,6 +220,7 @@ const styles = StyleSheet.create({
   card: {
     width: 'calc(33.333% - 16px)' as any,
     minWidth: 300,
+    maxWidth: '100%',
     borderRadius: 20,
     padding: 24,
     borderWidth: 1,

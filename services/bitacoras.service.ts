@@ -66,6 +66,20 @@ export async function crearBitacoraCompleta(
     }
   }
 
+  // 3. Notificar en segundo plano a los terapeutas del caso
+  (async () => {
+    try {
+      const { notificarTerapeutasNuevaBitacora } = await import("@/services/notificaciones.service");
+      await notificarTerapeutasNuevaBitacora(
+        payload.caso_id,
+        bitacoraId,
+        payload.creado_por
+      );
+    } catch (err) {
+      console.error("Error al enviar notificaciones de bitacora:", err);
+    }
+  })();
+
   return { bitacora_id: bitacoraId, error: null };
 }
 
@@ -110,25 +124,48 @@ export interface HistorialBitacoraData {
   hora_salida: string | null;
   estado: string;
   creado_por: string;
+  revisado_por?: string | null;
+  fecha_revision?: string | null;
+  notas_revision?: string | null;
   casos: {
+    caso_id: number;
+    usuario_id: string;
+    creado_por: string;
     alumnos: {
       pseudonimo: string;
     };
-  };
+  } | null;
   plantillas: {
     nombre: string;
   };
 }
 
 export async function getHistorialBitacoras(uid: string): Promise<HistorialBitacoraData[]> {
-  const { data, error } = await supabase
+  // 1. Obtener los caso_ids donde el usuario participa
+  const { data: participaciones } = await supabase
+    .from("caso_participantes")
+    .select("caso_id")
+    .eq("usuario_id", uid);
+  
+  const casoIds = participaciones?.map((p) => p.caso_id) || [];
+
+  // 2. Construir la consulta de bitácoras
+  let query = supabase
     .from("bitacoras")
     .select(`
       bitacora_id, caso_id, plantilla_id, fecha, hora_entrada, hora_salida, estado, creado_por,
-      casos ( alumnos ( pseudonimo ) ),
+      revisado_por, fecha_revision, notas_revision,
+      casos ( caso_id, usuario_id, creado_por, alumnos ( pseudonimo ) ),
       plantillas ( nombre )
-    `)
-    .or(`creado_por.eq.${uid},sombra_id.eq.${uid}`)
+    `);
+
+  if (casoIds.length > 0) {
+    query = query.or(`creado_por.eq.${uid},sombra_id.eq.${uid},caso_id.in.(${casoIds.join(",")})`);
+  } else {
+    query = query.or(`creado_por.eq.${uid},sombra_id.eq.${uid}`);
+  }
+
+  const { data, error } = await query
     .order("fecha", { ascending: false })
     .order("bitacora_id", { ascending: false });
 
@@ -143,7 +180,13 @@ export async function getHistorialBitacoras(uid: string): Promise<HistorialBitac
 export async function getBitacoraConRespuestas(bitacoraId: number) {
   const { data: bitacora, error: bitError } = await supabase
     .from("bitacoras")
-    .select("*")
+    .select(`
+      *,
+      revisado_por_user:usuarios!bitacoras_revisado_por_fkey (
+        nombres,
+        apellidos
+      )
+    `)
     .eq("bitacora_id", bitacoraId)
     .single();
 
@@ -166,7 +209,7 @@ export async function actualizarBitacoraCompleta(
   payload: Partial<BitacoraPayload>,
   respuestas: Record<number, string>
 ): Promise<{ error: string | null }> {
-  // 1. Actualizar campos base
+  // 1. Actualizar campos base (se establece en "borrador" para requerir revisión del terapeuta)
   const { error: bitError } = await supabase
     .from("bitacoras")
     .update({
@@ -174,7 +217,7 @@ export async function actualizarBitacoraCompleta(
       hora_entrada: payload.hora_entrada,
       hora_salida: payload.hora_salida,
       contexto: payload.contexto,
-      estado: "completado" // Al editar se asume que se quiere finalizar o mantener activo
+      estado: "borrador"
     })
     .eq("bitacora_id", bitacoraId);
 
@@ -201,6 +244,60 @@ export async function actualizarBitacoraCompleta(
       .insert(respuestasArray);
 
     if (insError) return { error: insError.message };
+  }
+
+  // 3. Notificar en segundo plano a los terapeutas del caso para su revisión
+  const casoIdVal = payload.caso_id;
+  const creadoPorVal = payload.creado_por;
+  if (casoIdVal && creadoPorVal) {
+    (async () => {
+      try {
+        const { notificarTerapeutasNuevaBitacora } = await import("@/services/notificaciones.service");
+        await notificarTerapeutasNuevaBitacora(
+          casoIdVal,
+          bitacoraId,
+          creadoPorVal
+        );
+      } catch (err) {
+        console.error("Error al enviar notificaciones de bitacora al actualizar:", err);
+      }
+    })();
+  }
+
+  return { error: null };
+}
+
+export interface RevisarBitacoraPayload {
+  revisado_por: string;
+  notas_revision: string;
+  estado: string;
+}
+
+export async function revisarBitacora(
+  bitacoraId: number,
+  payload: RevisarBitacoraPayload
+): Promise<{ error: string | null }> {
+  const { data, error } = await supabase
+    .from("bitacoras")
+    .update({
+      revisado_por: payload.revisado_por,
+      fecha_revision: new Date().toISOString(),
+      notas_revision: payload.notas_revision,
+      estado: payload.estado,
+      actualizado_en: new Date().toISOString()
+    })
+    .eq("bitacora_id", bitacoraId)
+    .select();
+
+  if (error) {
+    console.error("Error al revisar bitácora:", error);
+    return { error: error.message };
+  }
+
+  if (!data || data.length === 0) {
+    return {
+      error: "No se pudo actualizar la bitácora. Esto suele deberse a que no tienes los permisos RLS necesarios en la tabla 'bitacoras' para modificar este caso."
+    };
   }
 
   return { error: null };

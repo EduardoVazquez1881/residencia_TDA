@@ -12,6 +12,7 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AlumnoData, getAlumnos } from "@/services/alumnos.service";
+import { useNotificacionesContext } from "@/context/notificaciones-context";
 import { getCurrentSession } from "@/services/auth.service";
 import { getUsuario, UsuarioData } from "@/services/usuarios.service";
 import { getMisCasos, ListaCasoData } from "@/services/casos.service";
@@ -75,6 +76,9 @@ const TAB_ITEMS = [
 export function HomeScreen() {
   const colorScheme = useColorScheme() || "light";
   const colors = Colors[colorScheme as "light" | "dark"];
+  
+  // Consumir conteo de no leídas
+  const { unreadCount } = useNotificacionesContext();
 
   const [userData, setUserData] = useState<UsuarioData | null>(null);
   const [alumnos, setAlumnos] = useState<AlumnoData[]>([]);
@@ -210,7 +214,7 @@ export function HomeScreen() {
       >
         {/* ── Encabezado / Saludo ── */}
         <View style={styles.headerRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text
               style={[styles.welcomeSmall, { color: colors.textSecondary }]}
             >
@@ -220,23 +224,52 @@ export function HomeScreen() {
               {nombreCompleto}
             </Text>
           </View>
-          {/* Avatar */}
-          <View
-            style={[
-              styles.avatarCircle,
-              {
-                backgroundColor: isDark
-                  ? colors.backgroundSecondary
-                  : "#f0f4f8",
-                shadowColor: "#000",
-                shadowOpacity: 0.06,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 2 },
-                elevation: 2,
-              },
-            ]}
-          >
-            <Ionicons name="person" size={20} color={colors.textSecondary} />
+          
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            {/* Campana de Notificaciones */}
+            <TouchableOpacity
+              onPress={() => router.push("/notificaciones")}
+              style={[
+                styles.avatarCircle,
+                {
+                  backgroundColor: isDark
+                    ? colors.backgroundSecondary
+                    : "#f0f4f8",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.06,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 2 },
+                  elevation: 2,
+                  position: "relative",
+                },
+              ]}
+            >
+              <Ionicons name="notifications-outline" size={20} color={colors.text} />
+              {unreadCount > 0 && (
+                <View style={[styles.mobileBadge, { backgroundColor: colors.error }]}>
+                  <Text style={styles.mobileBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* Avatar */}
+            <View
+              style={[
+                styles.avatarCircle,
+                {
+                  backgroundColor: isDark
+                    ? colors.backgroundSecondary
+                    : "#f0f4f8",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.06,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 2 },
+                  elevation: 2,
+                },
+              ]}
+            >
+              <Ionicons name="person" size={20} color={colors.textSecondary} />
+            </View>
           </View>
         </View>
 
@@ -935,6 +968,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  mobileBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 3,
+  },
+  mobileBadgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "800",
+  },
 
   // Buscador — sin borde, fondo suave
   searchBar: {
@@ -1050,6 +1099,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 14,
     letterSpacing: -0.2,
+  },
+  resultadoSeccionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 18,
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   accionesRow: {
     flexDirection: "row",

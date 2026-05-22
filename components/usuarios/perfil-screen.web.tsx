@@ -54,7 +54,7 @@ export function PerfilScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Mi Perfil (WEB)</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Mi Perfil</Text>
         <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
           Gestiona tu información personal y cuenta
         </Text>
@@ -102,7 +102,7 @@ export function PerfilScreen() {
                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/notificaciones')}>
                <View style={[styles.menuIcon, { backgroundColor: '#f5f3ff' }]}>
                  <Ionicons name="notifications-outline" size={20} color="#8b5cf6" />
                </View>
