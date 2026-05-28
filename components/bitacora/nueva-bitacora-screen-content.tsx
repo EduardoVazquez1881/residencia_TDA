@@ -5,9 +5,16 @@ import { PrimaryButton } from "@/components/ui/primary-button";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { getCurrentSession } from "@/services/auth.service";
-import { crearBitacoraCompleta, getBitacoraConRespuestas, actualizarBitacoraCompleta, revisarBitacora } from "@/services/bitacoras.service";
+import { 
+  crearBitacoraCompleta, 
+  getBitacoraConRespuestas, 
+  actualizarBitacoraCompleta, 
+  revisarBitacora 
+} from "@/services/bitacoras.service";
+import { notificarTerapeutasNuevaBitacora } from "@/services/notificaciones.service";
 import { getCasoDetalle, CasoDetalleData } from "@/services/casos.service";
 import { getPlantillaEstructura, PlantillaEstructura } from "@/services/plantillas.service";
+import { saveDraft, loadDraft, clearDraft } from "@/services/drafts.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Stack, router, useLocalSearchParams } from "expo-router";
@@ -24,6 +31,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+const MainContainer = Platform.OS === 'web' ? View : KeyboardAvoidingView;
+const ScrollContainer = Platform.OS === 'web' ? Animated.View : Animated.ScrollView;
 
 export function NuevaBitacoraScreenContent() {
   const { casoId, plantillaId, editId } = useLocalSearchParams();
@@ -134,6 +144,27 @@ export function NuevaBitacoraScreenContent() {
               setFechaRevision(null);
             }
           }
+        } else {
+          // Es nueva bitácora, verificar si hay borrador
+          const draft = await loadDraft(cid, pid);
+          if (draft && Object.keys(draft).length > 0) {
+            if (Platform.OS === 'web') {
+              if (window.confirm("Se ha encontrado un borrador no guardado de esta bitácora. ¿Deseas restaurarlo?")) {
+                setRespuestas(draft);
+              } else {
+                clearDraft(cid, pid);
+              }
+            } else {
+              Alert.alert(
+                "Borrador recuperado",
+                "Se encontró un avance previo. ¿Deseas restaurar tus respuestas?",
+                [
+                  { text: "Descartar", style: "destructive", onPress: () => clearDraft(cid, pid) },
+                  { text: "Restaurar", onPress: () => setRespuestas(draft) }
+                ]
+              );
+            }
+          }
         }
       } catch (err) {
         console.error("Error loading for bitacora:", err);
@@ -144,6 +175,16 @@ export function NuevaBitacoraScreenContent() {
     };
     if (cid && pid) fetchData();
   }, [cid, pid, bid, fadeAnim]);
+
+  // Autoguardado silencioso de respuestas (solo si es creación nueva)
+  useEffect(() => {
+    if (!bid && cid && pid && Object.keys(respuestas).length > 0) {
+      const timer = setTimeout(() => {
+        saveDraft(cid, pid, respuestas);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [respuestas, cid, pid, bid]);
 
   const updateRespuesta = (campoId: number, valor: string) => {
     setRespuestas(prev => ({ ...prev, [campoId]: valor }));
@@ -169,7 +210,11 @@ export function NuevaBitacoraScreenContent() {
         if (campo.requerido) {
           const val = respuestas[campo.campo_id];
           if (!val || val.trim() === "") {
-            Alert.alert("Campos obligatorios", `La sección '${sec.nombre}' requiere respuesta en '${campo.etiqueta}'.`);
+            if (Platform.OS === 'web') {
+              alert(`Campos obligatorios: La sección '${sec.nombre}' requiere respuesta en '${campo.etiqueta}'.`);
+            } else {
+              Alert.alert("Campos obligatorios", `La sección '${sec.nombre}' requiere respuesta en '${campo.etiqueta}'.`);
+            }
             return;
           }
         }
@@ -178,7 +223,11 @@ export function NuevaBitacoraScreenContent() {
 
     const session = await getCurrentSession();
     if (!session?.user?.id) {
-      Alert.alert("Error", "No se detectó sesión de usuario activa.");
+      if (Platform.OS === 'web') {
+        alert("Error: No se detectó sesión de usuario activa.");
+      } else {
+        Alert.alert("Error", "No se detectó sesión de usuario activa.");
+      }
       return;
     }
 
@@ -209,12 +258,24 @@ export function NuevaBitacoraScreenContent() {
         Alert.alert("Error guardando", res.error);
       }
     } else {
+      if (!bid) {
+        clearDraft(cid, pid); // Limpiar borrador al guardar exitosamente
+        // Notificar a los terapeutas que se ha creado una nueva bitácora
+        if (res.bitacora_id) {
+          try {
+            await notificarTerapeutasNuevaBitacora(cid, res.bitacora_id, session.user.id);
+          } catch (err) {
+            console.error("Error al enviar notificación de nueva bitácora:", err);
+          }
+        }
+      }
+      
       if (Platform.OS === 'web') {
         alert(bid ? "Cambios guardados correctamente." : "Bitácora creada y registrada exitosamente.");
-        router.replace("/reportes" as any);
+        router.replace(bid ? "/reportes" : "/prueba" as any);
       } else {
         Alert.alert("Éxito", bid ? "Cambios guardados correctamente." : "Bitácora creada y registrada exitosamente.", [
-          { text: "Entendido", onPress: () => router.navigate(bid ? "/reportes" : "/prueba" as any) }
+          { text: "Entendido", onPress: () => router.replace(bid ? "/reportes" : "/prueba" as any) }
         ]);
       }
     }
@@ -338,7 +399,10 @@ export function NuevaBitacoraScreenContent() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.background }}>
+    <MainContainer 
+      {...(Platform.OS === 'web' ? {} : { behavior: Platform.OS === "ios" ? "padding" : "height" })} 
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
@@ -349,7 +413,10 @@ export function NuevaBitacoraScreenContent() {
         <View style={{ width: 40 }} />
       </View>
 
-      <Animated.ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} style={{ opacity: fadeAnim }}>
+      <ScrollContainer 
+        {...(Platform.OS === 'web' ? {} : { showsVerticalScrollIndicator: false, contentContainerStyle: styles.scrollContent })}
+        style={Platform.OS === 'web' ? [styles.scrollContent, { opacity: fadeAnim, paddingBottom: 60 }] : { opacity: fadeAnim }} 
+      >
         
         {/* INFO CABECERA */}
         <View style={[styles.card, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff", shadowOpacity: isDark ? 0.15 : 0.05 }]}>
@@ -448,19 +515,31 @@ export function NuevaBitacoraScreenContent() {
                           }
                         }}
                         disabled={shouldLockForm}
-                        style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 5 }}
+                        style={{ 
+                          flexDirection: "row", 
+                          alignItems: "center", 
+                          gap: 12, 
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          backgroundColor: currentVal === "true" ? `${colors.primary}15` : (isDark ? "#ffffff05" : "#f8fafc"),
+                          borderRadius: 14,
+                          borderWidth: 1,
+                          borderColor: currentVal === "true" ? `${colors.primary}40` : (isDark ? "#ffffff10" : "#e2e8f0"),
+                        }}
                       >
                         <Ionicons 
-                          name={currentVal === "true" ? "checkbox" : "square-outline"} 
+                          name={currentVal === "true" ? "checkmark-circle" : "ellipse-outline"} 
                           size={24} 
                           color={currentVal === "true" ? colors.primary : colors.textSecondary} 
                         />
-                        <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Marcar casilla</Text>
+                        <Text style={{ color: currentVal === "true" ? colors.primary : colors.textSecondary, fontSize: 15, fontWeight: currentVal === "true" ? "700" : "500" }}>
+                          {currentVal === "true" ? "Seleccionado" : "Toca para marcar"}
+                        </Text>
                       </TouchableOpacity>
                     )}
 
                     {(campo.tipo === "radio" || campo.tipo === "select") && (
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                         {(campo as any).campo_opciones?.map((op: any) => {
                           const isSelected = currentVal === op.valor;
                           return (
@@ -471,16 +550,19 @@ export function NuevaBitacoraScreenContent() {
                               }}
                               disabled={shouldLockForm}
                               style={{
-                                paddingHorizontal: 14,
-                                paddingVertical: 10,
-                                borderRadius: 10,
+                                paddingHorizontal: 18,
+                                paddingVertical: 12,
+                                borderRadius: 16,
                                 backgroundColor: isSelected ? colors.primary : (isDark ? "#ffffff10" : "#f1f5f9"),
-                                borderWidth: 1,
-                                borderColor: isSelected ? colors.primary : "transparent",
-                                opacity: (shouldLockForm && !isSelected) ? 0.5 : 1
+                                shadowColor: isSelected ? colors.primary : "#000",
+                                shadowOpacity: isSelected ? 0.3 : 0,
+                                shadowRadius: 6,
+                                shadowOffset: { width: 0, height: 3 },
+                                elevation: isSelected ? 4 : 0,
+                                opacity: (shouldLockForm && !isSelected) ? 0.4 : 1
                               }}
                             >
-                              <Text style={{ color: isSelected ? "#fff" : colors.textSecondary, fontWeight: isSelected ? "bold" : "500", fontSize: 13 }}>
+                              <Text style={{ color: isSelected ? "#fff" : colors.textSecondary, fontWeight: isSelected ? "700" : "600", fontSize: 14 }}>
                                 {op.etiqueta}
                               </Text>
                             </TouchableOpacity>
@@ -663,21 +745,60 @@ export function NuevaBitacoraScreenContent() {
           </View>
         )}
 
-        {isTerapeuta && bid !== null ? null : estadoBitacora !== 'revisado' ? (
-          <PrimaryButton title={bid ? "Guardar Cambios" : "Guardar Bitácora"} onPress={handleGuardar} loading={saving} />
-        ) : (
+        {isTerapeuta && bid !== null ? null : estadoBitacora === 'revisado' ? (
           <View style={[styles.infoBanner, { backgroundColor: isDark ? "#1e3a8a30" : "#eff6ff", borderColor: isDark ? "#1e40af" : "#bfdbfe" }]}>
             <Ionicons name="checkmark-circle" size={20} color={isDark ? "#60a5fa" : "#2563eb"} />
             <Text style={[styles.infoBannerText, { color: isDark ? "#93c5fd" : "#1d4ed8" }]}>
               Esta bitácora ya ha sido revisada y aprobada. No se permiten más modificaciones en las respuestas.
             </Text>
           </View>
-        )}
-        <View style={{ height: 60 }} />
+        ) : null}
+        
+        <View style={{ height: 120 }} />
+      </ScrollContainer>
 
-      </Animated.ScrollView>
+      {/* STICKY FOOTER PARA GUARDADO */}
+      {!shouldLockForm && (
+        <View style={[styles.stickyFooter, { backgroundColor: isDark ? colors.backgroundSecondary : '#fff', borderTopColor: isDark ? '#ffffff15' : '#e2e8f0' }]}>
+          <PrimaryButton 
+            title={bid ? "Guardar Cambios" : "Guardar Bitácora"} 
+            onPress={handleGuardar} 
+            loading={saving}
+            style={{ width: '100%', height: 50 }} 
+          />
+        </View>
+      )}
 
       {/* Date/Time Pickers natively */}
+      {showPicker && Platform.OS === "web" && (
+        <View style={styles.webModalOverlay as any}>
+          <View style={styles.webModalContent as any}>
+            <Text style={{ fontSize: 18, fontWeight: "700", textAlign: "center", color: "#333", marginBottom: 15 }}>
+              {showPicker === "fecha" || typeof showPicker === "number" ? "Seleccionar Fecha" : "Seleccionar Hora"}
+            </Text>
+            {React.createElement('input', {
+              type: showPicker === "fecha" || typeof showPicker === "number" ? "date" : "time",
+              style: { width: '100%', padding: '12px', fontSize: '16px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px', outline: 'none' },
+              onChange: (e: any) => {
+                const val = e.target.value;
+                if (val) {
+                  let d = new Date();
+                  if (showPicker === "fecha" || typeof showPicker === "number") {
+                    const [y, m, day] = val.split('-');
+                    d = new Date(Number(y), Number(m) - 1, Number(day));
+                  } else {
+                    const [h, min] = val.split(':');
+                    d.setHours(Number(h), Number(min), 0);
+                  }
+                  onDateChange(null, d);
+                }
+              }
+            })}
+            <PrimaryButton title="Confirmar" onPress={handleClosePicker} />
+          </View>
+        </View>
+      )}
+
       {showPicker && Platform.OS === "ios" && (
          <Modal transparent animationType="slide" visible={!!showPicker}>
            <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
@@ -722,11 +843,40 @@ export function NuevaBitacoraScreenContent() {
            onChange={onDateChange}
          />
       )}
-    </KeyboardAvoidingView>
+    </MainContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    ...Platform.select({
+      web: {
+        maxWidth: 1000,
+        width: '100%',
+        alignSelf: 'center',
+      }
+    })
+  },
+  webModalOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  webModalContent: {
+    backgroundColor: '#fff',
+    padding: 24,
+    borderRadius: 16,
+    width: 320,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+      }
+    })
+  },
   centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 60, paddingBottom: 10 },
   backBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center" },
@@ -765,4 +915,24 @@ const styles = StyleSheet.create({
   revisionBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   infoBanner: { padding: 16, borderRadius: 16, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
   infoBannerText: { flex: 1, fontSize: 14, fontWeight: "500", lineHeight: 20 },
+  stickyFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    borderTopWidth: 1,
+    ...Platform.select({
+      web: {
+        maxWidth: 1000,
+        alignSelf: 'center',
+        paddingHorizontal: 20,
+      }
+    }),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 10,
+  }
 });

@@ -11,6 +11,7 @@ import {
 } from "@/services/alumnos.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router } from "expo-router";
+import { safeBack } from "@/utils/navigation";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -159,7 +160,7 @@ export function RegistroAlumnoScreen() {
       Alert.alert(
         "¡Alumno registrado!",
         `El alumno "${pseudonimo.trim()}" ha sido registrado exitosamente.`,
-        [{ text: "Aceptar", onPress: () => router.replace("/alumnos" as any) }],
+        [{ text: "Aceptar", onPress: () => router.replace("/prueba" as any) }],
       );
     } catch {
       Alert.alert("Error", "No se pudo guardar el alumno.");
@@ -205,7 +206,7 @@ export function RegistroAlumnoScreen() {
         {/* ── Header ── */}
         <View style={styles.headerRow}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={safeBack}
             style={[
               styles.backBtn,
               { backgroundColor: "rgba(255,255,255,0.2)" },

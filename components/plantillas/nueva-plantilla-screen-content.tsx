@@ -56,6 +56,9 @@ function getTipoInfo(tipo: string) {
   return TIPOS_CAMPO.find((t) => t.tipo === tipo) ?? TIPOS_CAMPO[0];
 }
 
+const MainContainer = Platform.OS === 'web' ? View : KeyboardAvoidingView;
+const ScrollContainer = Platform.OS === 'web' ? View : ScrollView;
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export function NuevaPlantillaScreenContent() {
   const { editId } = useLocalSearchParams();
@@ -119,12 +122,17 @@ export function NuevaPlantillaScreenContent() {
     if (isEditing) {
       const load = async () => {
         try {
-          const struct = await getPlantillaEstructura(parseInt(editId as string, 10));
+          const [struct, session] = await Promise.all([
+            getPlantillaEstructura(parseInt(editId as string, 10)),
+            getCurrentSession()
+          ]);
           if (struct) {
             setOriginalTerapeutaId(struct.terapeuta_id);
             setNombre(struct.nombre);
             setDescripcion(struct.descripcion || "");
-            setEsGlobal(struct.es_global);
+            // Si la plantilla no nos pertenece, es un clon: nunca heredar es_global
+            const esClone = struct.terapeuta_id !== session?.user?.id;
+            setEsGlobal(esClone ? false : struct.es_global);
             setAlumnoId(struct.alumno_id);
             
             // Mapear secciones y campos a formato wizard local
@@ -154,7 +162,11 @@ export function NuevaPlantillaScreenContent() {
           }
         } catch (err) {
           console.error("Error loading for edit:", err);
-          Alert.alert("Error", "No se pudo cargar la plantilla.");
+          if (Platform.OS === 'web') {
+            alert("Error: No se pudo cargar la plantilla.");
+          } else {
+            Alert.alert("Error", "No se pudo cargar la plantilla.");
+          }
         } finally {
           setLoadingEdit(false);
         }
@@ -182,7 +194,14 @@ export function NuevaPlantillaScreenContent() {
 
   // Scroll al inicio cuando cambia el paso
   useEffect(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    if (Platform.OS === 'web') {
+      const firstInput = document.querySelector('input') || document.querySelector('textarea');
+      if (firstInput) {
+        firstInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } else {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }
   }, [step]);
 
   // ─── Validación por paso ─────────────────────────────────────────────────
@@ -245,10 +264,14 @@ export function NuevaPlantillaScreenContent() {
     if (!newCampoEtiqueta.trim()) return;
     const needsOpciones = newCampoTipo === "radio" || newCampoTipo === "select";
     if (needsOpciones && newCampoOpciones.length === 0) {
-      Alert.alert(
-        "Opciones requeridas",
-        "Agrega al menos una opción para este tipo de campo.",
-      );
+      if (Platform.OS === 'web') {
+        alert("Opciones requeridas: Agrega al menos una opción para este tipo de campo.");
+      } else {
+        Alert.alert(
+          "Opciones requeridas",
+          "Agrega al menos una opción para este tipo de campo.",
+        );
+      }
       return;
     }
     const campo: WizardCampo = {
@@ -329,9 +352,9 @@ export function NuevaPlantillaScreenContent() {
         if (isEditing && !isOwner) {
           // Si estamos "editando" algo que no es nuestro, es un clon
           finalPayload.nombre = `Copia de ${payload.nombre}`;
-          // Por seguridad, las copias no deberían ser globales automáticamente 
-          // a menos que el usuario lo decida explícitamente en el wizard
-          // finalPayload.es_global = false; 
+          // Las copias nunca deben ser globales automáticamente
+          finalPayload.es_global = false;
+          finalPayload.alumno_id = null; // limpiar alumno_id también por consistencia
         }
 
         result = await crearPlantillaCompleta(finalPayload);
@@ -575,20 +598,26 @@ export function NuevaPlantillaScreenContent() {
             ) : null}
           </View>
           <TouchableOpacity
-            onPress={() =>
-              Alert.alert(
-                "Eliminar sección",
-                `¿Eliminar "${s.nombre}"?\nSe perderán los campos que agregues en el paso siguiente.`,
-                [
-                  { text: "Cancelar", style: "cancel" },
-                  {
-                    text: "Eliminar",
-                    style: "destructive",
-                    onPress: () => removeSeccion(s.localId),
-                  },
-                ],
-              )
-            }
+            onPress={() => {
+              if (Platform.OS === 'web') {
+                if (confirm(`¿Eliminar "${s.nombre}"?\nSe perderán los campos que agregues en el paso siguiente.`)) {
+                  removeSeccion(s.localId);
+                }
+              } else {
+                Alert.alert(
+                  "Eliminar sección",
+                  `¿Eliminar "${s.nombre}"?\nSe perderán los campos que agregues en el paso siguiente.`,
+                  [
+                    { text: "Cancelar", style: "cancel" },
+                    {
+                      text: "Eliminar",
+                      style: "destructive",
+                      onPress: () => removeSeccion(s.localId),
+                    },
+                  ],
+                );
+              }
+            }}
             style={styles.trashBtn}
           >
             <Ionicons name="trash-outline" size={16} color={colors.error} />
@@ -1146,8 +1175,8 @@ export function NuevaPlantillaScreenContent() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <MainContainer
+      {...(Platform.OS === 'web' ? {} : { behavior: Platform.OS === "ios" ? "padding" : "height" })}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
       <Stack.Screen options={{ headerShown: false }} />
@@ -1168,14 +1197,20 @@ export function NuevaPlantillaScreenContent() {
             onPress={() => {
               if (step === 1) {
                 if (nombre.trim() || secciones.length > 0) {
-                  Alert.alert(
-                    "¿Salir?",
-                    "Se perderán los datos ingresados.",
-                    [
-                      { text: "Cancelar", style: "cancel" },
-                      { text: "Salir", style: "destructive", onPress: () => router.back() },
-                    ],
-                  );
+                  if (Platform.OS === 'web') {
+                    if (confirm("¿Salir? Se perderán los datos ingresados.")) {
+                      router.back();
+                    }
+                  } else {
+                    Alert.alert(
+                      "¿Salir?",
+                      "Se perderán los datos ingresados.",
+                      [
+                        { text: "Cancelar", style: "cancel" },
+                        { text: "Salir", style: "destructive", onPress: () => router.back() },
+                      ],
+                    );
+                  }
                 } else {
                   router.back();
                 }
@@ -1277,18 +1312,16 @@ export function NuevaPlantillaScreenContent() {
       </View>
 
       {/* ── Contenido scrolleable ── */}
-      <ScrollView
-        ref={scrollRef}
+      <ScrollContainer
+        {...(Platform.OS === 'web' ? {} : { ref: scrollRef, keyboardShouldPersistTaps: "handled", showsVerticalScrollIndicator: false })}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 20 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
         {step === 1 && renderStep1()}
         {step === 2 && renderStep2()}
         {step === 3 && renderStep3()}
         {step === 4 && renderStep4()}
-      </ScrollView>
+      </ScrollContainer>
 
       {/* ── Pie de navegación fijo ── */}
       <View
@@ -1514,7 +1547,7 @@ export function NuevaPlantillaScreenContent() {
           </View>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </MainContainer>
   );
 }
 
@@ -1542,12 +1575,21 @@ function StepSectionHeader({
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+    ...Platform.select({
+      web: {
+        maxWidth: 800,
+        width: '100%',
+        alignSelf: 'center',
+      }
+    })
+  },
 
   // Wizard header
   wizardHeader: {
     paddingHorizontal: 20,
-    paddingTop: 56,
+    paddingTop: Platform.OS === 'web' ? 24 : 56,
     paddingBottom: 14,
     borderBottomWidth: 1,
   },
@@ -1589,7 +1631,7 @@ const styles = StyleSheet.create({
   progressLabel: { fontSize: 10, textAlign: "center" },
 
   // Step content
-  stepContent: { paddingHorizontal: 20, paddingTop: 20, gap: 16 },
+  stepContent: { paddingHorizontal: Platform.OS === 'web' ? 0 : 20, paddingTop: 20, gap: 16 },
   card: { borderRadius: 20, padding: 18 },
   fieldGap: { marginBottom: 14 },
 
@@ -1841,10 +1883,13 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
+    justifyContent: Platform.OS === 'web' ? "center" : "flex-end",
+    alignItems: Platform.OS === 'web' ? "center" : "stretch",
   },
   modalContent: {
-    height: "85%",
+    height: Platform.OS === 'web' ? 600 : "85%",
+    width: Platform.OS === 'web' ? 500 : "100%",
+    borderRadius: Platform.OS === 'web' ? 24 : 0,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     padding: 20,

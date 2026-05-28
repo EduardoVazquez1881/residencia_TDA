@@ -302,3 +302,65 @@ export async function revisarBitacora(
 
   return { error: null };
 }
+
+// ─── Historial y Evolución por Alumno ──────────────────────────────────────────
+export interface BitacoraAlumnoData {
+  bitacora_id: number;
+  fecha: string;
+  estado: string;
+  plantilla_id: number | null;
+  hora_entrada?: string;
+  hora_salida?: string;
+  plantillas?: { nombre: string };
+  casos: { caso_id: number; alumno_id: number; usuario_id: string; creado_por: string };
+  bitacora_respuestas?: {
+    valor: string;
+    plantilla_campos?: {
+      campo_id: number;
+      etiqueta: string;
+      tipo: string;
+    };
+  }[];
+}
+
+export async function getBitacorasPorAlumno(alumnoId: number): Promise<BitacoraAlumnoData[]> {
+  // 1. Fetch casos for the alumno
+  const { data: casosData, error: casosError } = await supabase
+    .from('casos')
+    .select('caso_id, alumno_id, usuario_id, creado_por')
+    .eq('alumno_id', alumnoId);
+
+  if (casosError || !casosData || casosData.length === 0) {
+    return [];
+  }
+
+  const casoIds = casosData.map(c => c.caso_id);
+  const casosMap = new Map(casosData.map(c => [c.caso_id, c]));
+
+  // 2. Fetch bitacoras for those casos
+  const { data: bitacorasData, error: bitacorasError } = await supabase
+    .from('bitacoras')
+    .select(`
+      bitacora_id, fecha, estado, plantilla_id, hora_entrada, hora_salida, caso_id,
+      plantillas ( nombre ),
+      bitacora_respuestas (
+        valor,
+        plantilla_campos ( campo_id, etiqueta, tipo )
+      )
+    `)
+    .in('caso_id', casoIds)
+    .order('fecha', { ascending: false });
+
+  if (bitacorasError || !bitacorasData) {
+    console.error("Error al obtener bitácoras del alumno:", bitacorasError);
+    return [];
+  }
+
+  // 3. Map the casos back into the bitacoras results to match the interface
+  const result = bitacorasData.map((b: any) => ({
+    ...b,
+    casos: casosMap.get(b.caso_id)
+  }));
+
+  return result as any as BitacoraAlumnoData[];
+}

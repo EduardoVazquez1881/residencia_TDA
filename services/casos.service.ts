@@ -60,6 +60,15 @@ export async function crearCasoCompleto(payload: CasoPayload): Promise<CrearCaso
     };
   }
 
+  // Asegurarnos de que el creador (usuario_id) esté en la lista de participantes
+  const creatorIncluded = participantesAInsertar.some(p => p.usuario_id === payload.usuario_id);
+  if (!creatorIncluded) {
+    participantesAInsertar.push({
+      usuario_id: payload.usuario_id,
+      rol_en_caso: "Terapeuta Principal"
+    });
+  }
+
   // 2. Revisar si ya existe el caso para evitar el error de llave única
   let casoId: number | null = null;
   const { data: existente } = await supabase

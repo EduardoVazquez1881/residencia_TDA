@@ -4,6 +4,7 @@ import { getCurrentSession } from "@/services/auth.service";
 import { getMisCasos, ListaCasoData } from "@/services/casos.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useFocusEffect } from "expo-router";
+import { safeBack } from "@/utils/navigation";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -81,7 +82,7 @@ export function CasosListScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()} // Vuelve a la pantalla anterior (Home)
+          onPress={safeBack} // Vuelve a la pantalla anterior (Home)
           style={[styles.backBtn, { backgroundColor: isDark ? colors.backgroundSecondary : "#f0f4f8" }]}
         >
           <Ionicons name="arrow-back" size={20} color={colors.text} />

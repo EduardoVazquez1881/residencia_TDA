@@ -32,45 +32,45 @@ export function SeleccionBitacoraScreen() {
 
       <View style={styles.header}>
         <View>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Módulo de Plantillas</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Módulo de Bitácoras</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            Modela la información de tus bitácoras de seguimiento
+            Gestiona el registro de sesiones y evolución de los casos
           </Text>
         </View>
       </View>
 
       <View style={styles.grid}>
-        {/* Opción 1: Nueva Plantilla */}
+        {/* Opción 1: Nueva Bitácora */}
         <TouchableOpacity
           style={[styles.optionCard, cardStyle]}
           activeOpacity={0.7}
-          onPress={() => router.push("/nueva-plantilla" as any)}
+          onPress={() => router.push("/seleccion-caso" as any)}
         >
           <View style={[styles.iconCircle, { backgroundColor: `${colors.primary}15` }]}>
             <Ionicons name="add-circle-outline" size={32} color={colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.optionTitle, { color: colors.text }]}>Nueva Plantilla</Text>
+            <Text style={[styles.optionTitle, { color: colors.text }]}>Nueva Bitácora</Text>
             <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
-              Crea un formato personalizado desde cero: define secciones, campos y tipos de respuesta.
+              Selecciona un caso abierto e inicia el registro de una nueva sesión clínica.
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        {/* Opción 2: Mis Plantillas */}
+        {/* Opción 2: Historial */}
         <TouchableOpacity
           style={[styles.optionCard, cardStyle]}
           activeOpacity={0.7}
-          onPress={() => router.push("/mis-plantillas" as any)}
+          onPress={() => router.push("/reportes" as any)}
         >
           <View style={[styles.iconCircle, { backgroundColor: "#8b5cf615" }]}>
-            <Ionicons name="documents-outline" size={32} color="#8b5cf6" />
+            <Ionicons name="time-outline" size={32} color="#8b5cf6" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.optionTitle, { color: colors.text }]}>Mis Plantillas</Text>
+            <Text style={[styles.optionTitle, { color: colors.text }]}>Historial y Reportes</Text>
             <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
-              Administra tus formatos existentes: visualiza, edita o elimina tus plantillas.
+              Consulta, filtra y exporta a PDF las bitácoras anteriores de todos tus alumnos.
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
@@ -80,7 +80,7 @@ export function SeleccionBitacoraScreen() {
       <View style={[styles.infoBox, { backgroundColor: isDark ? "#1e2d3d" : "#eff6ff" }]}>
         <Ionicons name="information-circle-outline" size={20} color="#3b82f6" />
         <Text style={[styles.infoText, { color: "#3b82f6" }]}>
-          Las plantillas te permiten estandarizar la recolección de datos. Una vez creada una plantilla, puedes asignarla a uno o varios expedientes.
+          Para crear una bitácora, el alumno seleccionado debe tener un caso activo y una plantilla asignada.
         </Text>
       </View>
     </WebDashboardLayout>
@@ -91,8 +91,15 @@ const styles = StyleSheet.create({
   header: { marginBottom: 40 },
   headerTitle: { fontSize: 32, fontWeight: "800", letterSpacing: -1 },
   headerSubtitle: { fontSize: 16, marginTop: 4 },
-  grid: { gap: 24, maxWidth: 800 },
+  grid: { 
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 24, 
+    maxWidth: 1000 
+  },
   optionCard: {
+    flex: 1,
+    minWidth: 320,
     flexDirection: "row",
     alignItems: "center",
     padding: 32,
@@ -115,7 +122,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     flexDirection: 'row',
     gap: 16,
-    maxWidth: 800,
+    maxWidth: 1000,
   },
   infoText: { fontSize: 14, lineHeight: 20, fontWeight: '500', flex: 1 },
 });

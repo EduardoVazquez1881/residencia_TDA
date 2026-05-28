@@ -19,8 +19,8 @@ import { getMisCasos, ListaCasoData } from "@/services/casos.service";
 import { getHistorialBitacoras, HistorialBitacoraData } from "@/services/bitacoras.service";
 import { getPlantillas, PlantillaData } from "@/services/plantillas.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router, Stack } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { router, Stack, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -117,9 +117,11 @@ export function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchData().finally(() => setLoading(false));
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData().finally(() => setLoading(false));
+    }, [])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -195,8 +197,24 @@ export function HomeScreen() {
       )
     : [];
 
+  // ─── Cálculos Locales de Métricas ───
+  const hoy = new Date();
+  const hace7Dias = new Date();
+  hace7Dias.setDate(hoy.getDate() - 7);
+
+  const bitacorasSemana = bitacoras.filter(b => {
+    const d = new Date(b.fecha);
+    return d >= hace7Dias && d <= hoy;
+  }).length;
+
+  const casosActivos = casos.length;
+
+  const bitacorasPendientes = bitacoras.filter(b => {
+    return b.creado_por !== userData?.usuario_id && b.estado !== 'revisado';
+  });
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? colors.background : '#f8fafc' }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* ── Contenido principal scrolleable ── */}
@@ -300,6 +318,43 @@ export function HomeScreen() {
             value={searchText}
             onChangeText={setSearchText}
           />
+        </View>
+
+        {/* ── Alerta de Revisiones Pendientes ── */}
+        {bitacorasPendientes.length > 0 && (
+          <View style={[styles.alertBanner, { backgroundColor: isDark ? "#78350f" : "#fef3c7", borderColor: isDark ? "#b45309" : "#f59e0b" }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+              <View style={[styles.alertIconCircle, { backgroundColor: isDark ? "#b45309" : "#f59e0b" }]}>
+                <Ionicons name="warning" size={20} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: isDark ? "#fde68a" : "#b45309" }}>
+                  Revisiones Pendientes
+                </Text>
+                <Text style={{ fontSize: 13, color: isDark ? "#fcd34d" : "#d97706" }}>
+                  Tienes {bitacorasPendientes.length} bitácora{bitacorasPendientes.length === 1 ? '' : 's'} esperando evaluación.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={[styles.alertBtn, { backgroundColor: isDark ? "#b45309" : "#f59e0b" }]}
+              onPress={() => router.push("/reportes" as any)}
+            >
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>Revisar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Panel de Métricas Móvil ── */}
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+          <View style={[styles.metricBox, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
+            <Text style={[styles.metricNum, { color: colors.primary }]}>{casosActivos}</Text>
+            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Expedientes{"\n"}Activos</Text>
+          </View>
+          <View style={[styles.metricBox, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
+            <Text style={[styles.metricNum, { color: "#10b981" }]}>{bitacorasSemana}</Text>
+            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Bitácoras{"\n"}(Últ. 7 días)</Text>
+          </View>
         </View>
 
         {/* ── Resumen de Mis Alumnos ── */}
@@ -1266,5 +1321,49 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     justifyContent: "center",
     alignItems: "center",
+  },
+  alertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 24,
+  },
+  alertIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  metricBox: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  metricNum: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  metricLabel: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 16,
   },
 });

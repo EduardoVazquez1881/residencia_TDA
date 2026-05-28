@@ -4,11 +4,13 @@ import { FormTextArea } from "@/components/ui/form-textarea";
 import { PrimaryButton } from "@/components/ui/primary-button";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { NativeBarChart } from "@/components/ui/native-bar-chart";
 import {
   actualizarAlumno,
   AlumnoData,
   getAlumno,
 } from "@/services/alumnos.service";
+import { getBitacorasPorAlumno, BitacoraAlumnoData } from "@/services/bitacoras.service";
 import { getCurrentSession } from "@/services/auth.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useLocalSearchParams } from "expo-router";
@@ -39,6 +41,11 @@ export function AlumnoDetailsScreen() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  // Tabs y Evolución
+  const [activeTab, setActiveTab] = useState<'perfil' | 'historial' | 'evolucion'>('perfil');
+  const [bitacoras, setBitacoras] = useState<BitacoraAlumnoData[]>([]);
+  const [selectedCampoEvolucion, setSelectedCampoEvolucion] = useState<number | null>(null);
 
   // Form State para la edición
   const [pseudonimo, setPseudonimo] = useState("");
@@ -62,6 +69,9 @@ export function AlumnoDetailsScreen() {
           setAlumno(data);
           syncFormState(data);
         }
+        
+        const bitHistory = await getBitacorasPorAlumno(alumnoId);
+        setBitacoras(bitHistory);
       } catch (e) {
         console.error(e);
       } finally {
@@ -201,8 +211,33 @@ export function AlumnoDetailsScreen() {
           )}
         </View>
 
-        <View style={styles.gridRow}>
-          <View style={styles.col}>
+        {/* SELECTOR DE PESTAÑAS (Solo en modo vista) */}
+        {!isEditing && (
+          <View style={[styles.tabsContainer, { backgroundColor: isDark ? colors.backgroundSecondary : "#e2e8f0" }]}>
+            <TouchableOpacity 
+              onPress={() => setActiveTab('perfil')} 
+              style={[styles.tabBtn, activeTab === 'perfil' && { backgroundColor: colors.background, ...styles.activeTabShadow }]}
+            >
+              <Text style={[styles.tabText, { color: activeTab === 'perfil' ? colors.primary : colors.textSecondary }]}>Perfil del Alumno</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => setActiveTab('historial')} 
+              style={[styles.tabBtn, activeTab === 'historial' && { backgroundColor: colors.background, ...styles.activeTabShadow }]}
+            >
+              <Text style={[styles.tabText, { color: activeTab === 'historial' ? colors.primary : colors.textSecondary }]}>Historial de Sesiones</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => setActiveTab('evolucion')} 
+              style={[styles.tabBtn, activeTab === 'evolucion' && { backgroundColor: colors.background, ...styles.activeTabShadow }]}
+            >
+              <Text style={[styles.tabText, { color: activeTab === 'evolucion' ? colors.primary : colors.textSecondary }]}>Evolución y Gráficos</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {(activeTab === 'perfil' || isEditing) && (
+          <View style={styles.gridRow}>
+            <View style={styles.col}>
             {/* INFORMACIÓN GENERAL */}
             <View style={[styles.sectionCard, cardStyle]}>
               <SectionHeader icon="information-circle-outline" label="Información General" color={colors.primary} />
@@ -323,7 +358,130 @@ export function AlumnoDetailsScreen() {
               )}
             </View>
           </View>
-        </View>
+          </View>
+        )}
+
+        {/* --- PESTAÑA HISTORIAL --- */}
+        {activeTab === 'historial' && !isEditing && (
+          <View style={[styles.sectionCard, cardStyle, { padding: 0, overflow: 'hidden', flex: 1, minHeight: 400 }]}>
+            <View style={{ padding: 24, borderBottomWidth: 1, borderBottomColor: isDark ? '#ffffff15' : '#00000010' }}>
+              <SectionHeader icon="time-outline" label="Historial de Sesiones" color={colors.primary} />
+            </View>
+            
+            <ScrollView style={{ flex: 1 }}>
+              {bitacoras.length === 0 ? (
+                <View style={{ padding: 60, alignItems: 'center' }}>
+                  <Ionicons name="document-text-outline" size={64} color={colors.textSecondary} style={{ opacity: 0.5 }} />
+                  <Text style={{ marginTop: 16, color: colors.textSecondary, fontSize: 16 }}>No hay bitácoras registradas para este alumno.</Text>
+                </View>
+              ) : (
+                bitacoras.map((b, idx) => (
+                  <View key={`bit-${b.bitacora_id}`} style={[styles.historialRow, { borderBottomColor: isDark ? '#ffffff10' : '#00000005' }, idx === bitacoras.length -1 && { borderBottomWidth: 0 }]}>
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                      <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: isDark ? '#ffffff10' : '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
+                         <Ionicons name="document-text" size={20} color={colors.textSecondary} />
+                      </View>
+                      <View>
+                        <Text style={{ fontWeight: '700', color: colors.text, fontSize: 16, marginBottom: 4 }}>
+                          {new Date(b.fecha + "T00:00:00").toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                        </Text>
+                        <Text style={{ fontSize: 14, color: colors.textSecondary }}>Plantilla: {b.plantillas?.nombre || 'General'}</Text>
+                      </View>
+                    </View>
+                    <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 12 }}>
+                      <View style={[styles.statusBadgeSm, { backgroundColor: b.estado === 'revisado' ? '#3b82f615' : '#f59e0b15' }]}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: b.estado === 'revisado' ? '#3b82f6' : '#f59e0b' }}>
+                          {b.estado.toUpperCase()}
+                        </Text>
+                      </View>
+                      <TouchableOpacity 
+                        onPress={() => router.push({ pathname: '/nueva-bitacora', params: { casoId: b.casos?.caso_id || '', editId: b.bitacora_id, plantillaId: b.plantilla_id || '' } })}
+                      >
+                        <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>Ver Completa &rarr;</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* --- PESTAÑA EVOLUCIÓN --- */}
+        {activeTab === 'evolucion' && !isEditing && (() => {
+          const camposNumericosMap = new Map<number, string>();
+          bitacoras.forEach(b => {
+            b.bitacora_respuestas?.forEach(r => {
+              if (r.plantilla_campos && (r.plantilla_campos.tipo === 'numero' || r.plantilla_campos.tipo === 'escala')) {
+                camposNumericosMap.set(r.plantilla_campos.campo_id, r.plantilla_campos.etiqueta);
+              }
+            });
+          });
+          const camposNumericos = Array.from(camposNumericosMap.entries()).map(([id, label]) => ({ id, label }));
+          
+          if (!selectedCampoEvolucion && camposNumericos.length > 0) {
+            setSelectedCampoEvolucion(camposNumericos[0].id);
+          }
+
+          let chartData: {label: string, value: number}[] = [];
+          if (selectedCampoEvolucion) {
+            const bitsAsc = [...bitacoras].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+            bitsAsc.forEach(b => {
+              const resp = b.bitacora_respuestas?.find(r => r.plantilla_campos?.campo_id === selectedCampoEvolucion);
+              if (resp && resp.valor) {
+                const numVal = parseFloat(resp.valor);
+                if (!isNaN(numVal)) {
+                  chartData.push({
+                    label: new Date(b.fecha + "T00:00:00").toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+                    value: numVal
+                  });
+                }
+              }
+            });
+          }
+
+          return (
+            <View style={[styles.sectionCard, cardStyle, { flex: 1, minHeight: 400 }]}>
+              <SectionHeader icon="bar-chart-outline" label="Evolución y Gráficos del Alumno" color="#10b981" />
+              
+              {camposNumericos.length === 0 ? (
+                <View style={{ padding: 60, alignItems: 'center' }}>
+                  <Ionicons name="alert-circle-outline" size={64} color={colors.textSecondary} style={{ opacity: 0.5 }} />
+                  <Text style={{ marginTop: 16, color: colors.textSecondary, fontSize: 16, textAlign: 'center', maxWidth: 400 }}>
+                    No se encontraron variables medibles (campos numéricos o escalas) en el historial de este alumno para poder graficar.
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textSecondary, marginBottom: 12 }}>Métrica a visualizar:</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 32, flexGrow: 0 }} contentContainerStyle={{ paddingBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      {camposNumericos.map(c => (
+                        <TouchableOpacity
+                          key={c.id}
+                          onPress={() => setSelectedCampoEvolucion(c.id)}
+                          style={[
+                            styles.chip,
+                            { backgroundColor: selectedCampoEvolucion === c.id ? colors.primary : (isDark ? '#ffffff10' : '#f1f5f9') }
+                          ]}
+                        >
+                          <Text style={{ color: selectedCampoEvolucion === c.id ? '#fff' : colors.text, fontSize: 14, fontWeight: '700' }}>
+                            {c.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+
+                  <View style={{ padding: 24, borderRadius: 20, backgroundColor: isDark ? '#ffffff05' : '#f8fafc', flex: 1, minHeight: 300 }}>
+                    <NativeBarChart data={chartData} barColor="#10b981" height={260} />
+                  </View>
+                </View>
+              )}
+            </View>
+          );
+        })()}
+
       </>
     </WebDashboardLayout>
   );
@@ -415,4 +573,52 @@ const styles = StyleSheet.create({
   readonlyValueRow: { flexDirection: "row", alignItems: "center" },
   readonlyValueText: { fontSize: 16, fontWeight: "600" },
   longText: { fontSize: 15, lineHeight: 24 },
+  
+  // Tabs styles (Web)
+  tabsContainer: {
+    flexDirection: 'row',
+    padding: 6,
+    borderRadius: 16,
+    marginBottom: 32,
+    maxWidth: 600,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeTabShadow: {
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  
+  // Historial styles (Web)
+  historialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 24,
+    borderBottomWidth: 1,
+  },
+  statusBadgeSm: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  
+  // Evolucion styles (Web)
+  chip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+  }
 });

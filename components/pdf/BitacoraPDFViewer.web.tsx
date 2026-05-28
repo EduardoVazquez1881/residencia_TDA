@@ -46,6 +46,7 @@ export function BitacoraPDFViewer({
     ...CONFIG_ORG_DEFAULT,
   });
   const [userId, setUserId] = useState<string | null>(null);
+  const [incluirFirmas, setIncluirFirmas] = useState(true);
 
   // Cargar config al abrir
   useEffect(() => {
@@ -73,7 +74,7 @@ export function BitacoraPDFViewer({
         setLoading(false);
         return;
       }
-      const html = generarHTMLBitacora(data, config);
+      const html = generarHTMLBitacora(data, config, incluirFirmas);
       setHtmlContent(html);
       setStep("preview");
     } catch (e) {
@@ -234,6 +235,46 @@ export function BitacoraPDFViewer({
                   />
                 </View>
               ))}
+
+              {/* Opción para incluir firmas */}
+              <View style={[styles.fieldGroup, { marginTop: 10, paddingBottom: 20 }]}>
+                <View style={[styles.fieldLabelRow, { justifyContent: "space-between", alignItems: "center" }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Ionicons name="document-text-outline" size={14} color={colors.primary} />
+                    <Text style={[styles.fieldLabel, { color: colors.text, marginBottom: 0 }]}>Incluir espacios de firmas en el PDF</Text>
+                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setIncluirFirmas(!incluirFirmas)}
+                    style={{
+                      width: 44,
+                      height: 24,
+                      borderRadius: 12,
+                      backgroundColor: incluirFirmas ? colors.primary : isDark ? "#4b5563" : "#cbd5e1",
+                      justifyContent: "center",
+                      paddingHorizontal: 2,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        backgroundColor: "#fff",
+                        transform: [{ translateX: incluirFirmas ? 20 : 0 }],
+                        shadowColor: "#000",
+                        shadowOpacity: 0.1,
+                        shadowRadius: 2,
+                        elevation: 2,
+                      }}
+                    />
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 6, marginLeft: 20 }}>
+                  Si desmarcas esto, el PDF no generará los bloques inferiores para que el tutor y terapeuta firmen el documento impreso.
+                </Text>
+              </View>
+
             </ScrollView>
           ) : (
             <View style={{ flex: 1, padding: 24 }}>
@@ -258,9 +299,8 @@ export function BitacoraPDFViewer({
                     { color: colors.textSecondary },
                   ]}
                 >
-                  Se abrirá una nueva ventana con el documento. Usa{" "}
-                  <Text style={{ fontWeight: "700" }}>Ctrl+P</Text> (o el
-                  menú del navegador) para guardarlo como PDF.
+                  Se abrirá el cuadro de diálogo de impresión; selecciona{" "}
+                  <Text style={{ fontWeight: "700" }}>'Guardar como PDF'</Text> para descargarlo en tu dispositivo.
                 </Text>
               </View>
 

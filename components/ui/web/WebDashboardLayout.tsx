@@ -14,9 +14,10 @@ export const WebDashboardLayout = ({ children }: WebDashboardLayoutProps) => {
   const { width } = useWindowDimensions();
   // En web, siempre queremos el sidebar a menos que sea una pantalla muy pequeña
   const isDesktop = Platform.OS === 'web' || width >= 768;
+  const isDark = colorScheme === 'dark';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? colors.background : '#f8fafc' }]}>
       {isDesktop ? <WebSidebar /> : null}
       
       <View style={styles.contentArea}>

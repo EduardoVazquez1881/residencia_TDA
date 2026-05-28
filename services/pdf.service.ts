@@ -168,7 +168,8 @@ export async function getBitacoraPDFData(
 // ─── Generador de HTML del documento PDF ─────────────────────────────────────
 export function generarHTMLBitacora(
   data: BitacoraPDFData,
-  config: ConfiguracionOrganizacion
+  config: ConfiguracionOrganizacion,
+  incluirFirmas: boolean = true
 ): string {
   const fechaFormateada = new Date(
     data.fecha + "T00:00:00"
@@ -254,282 +255,128 @@ export function generarHTMLBitacora(
   <title>Bitacora de Sesion — ${data.pseudonimo} — ${fechaFormateada}</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
-      font-family: 'Georgia', 'Times New Roman', serif;
-      color: #1a1a1a;
-      font-size: 11.5pt;
-      line-height: 1.55;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #111827;
+      font-size: 10pt;
+      line-height: 1.4;
       background: #fff;
     }
-
     .page {
-      max-width: 760px;
+      max-width: 800px;
       margin: 0 auto;
-      padding: 48px 56px;
+      padding: 24px 32px;
     }
-
-    /* ENCABEZADO */
     .header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      padding-bottom: 14px;
-      border-bottom: 2px solid #1a1a1a;
-      margin-bottom: 6px;
+      align-items: flex-end;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #111827;
+      margin-bottom: 12px;
     }
-
     .org-logo {
-      max-height: 56px;
-      max-width: 110px;
+      max-height: 40px;
+      max-width: 100px;
       object-fit: contain;
       display: block;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
-
-    .org-nombre {
-      font-size: 14pt;
-      font-weight: bold;
-      color: #1a1a1a;
-      letter-spacing: 0.02em;
-    }
-
-    .org-contacto {
-      font-size: 8.5pt;
-      color: #555;
-      margin-top: 3px;
-      font-family: 'Arial', sans-serif;
-    }
-
-    .header-derecho {
-      text-align: right;
-      font-family: 'Arial', sans-serif;
-      font-size: 8.5pt;
-      color: #555;
-      white-space: nowrap;
-    }
-
-    .header-derecho .doc-ref {
-      font-size: 9pt;
-      font-weight: bold;
-      color: #1a1a1a;
-      display: block;
-      margin-bottom: 3px;
-    }
-
-    .doc-subtitulo {
-      font-family: 'Arial', sans-serif;
-      font-size: 8.5pt;
-      color: #555;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      padding: 5px 0 14px;
-      border-bottom: 1px solid #ccc;
-      margin-bottom: 18px;
-    }
-
-    /* TITULO CENTRAL */
-    .doc-titulo {
-      text-align: center;
-      margin: 22px 0 20px;
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 16px;
-    }
-
-    .doc-titulo h1 {
-      font-size: 17pt;
-      font-weight: bold;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: #1a1a1a;
-    }
-
-    .doc-titulo .estado {
+    .org-nombre { font-size: 11pt; font-weight: bold; color: #111827; }
+    .org-contacto { font-size: 8pt; color: #4b5563; margin-top: 2px; }
+    .header-derecho { text-align: right; }
+    .header-derecho .doc-ref { font-size: 11pt; font-weight: 800; text-transform: uppercase; color: #111827; display: block; margin-bottom: 2px; }
+    .header-derecho .doc-meta { font-size: 8pt; color: #4b5563; }
+    .estado {
       display: inline-block;
-      margin-top: 6px;
-      font-family: 'Arial', sans-serif;
-      font-size: 8pt;
-      letter-spacing: 0.12em;
+      font-size: 7pt;
+      font-weight: bold;
       text-transform: uppercase;
-      color: #444;
-      border: 1px solid #aaa;
-      padding: 2px 12px;
+      color: #374151;
+      border: 1px solid #9ca3af;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+      vertical-align: middle;
     }
-
-    /* TABLA DE INFORMACION */
     .info-tabla {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 22px;
-      font-family: 'Arial', sans-serif;
+      margin-bottom: 16px;
+      font-size: 8.5pt;
     }
-
     .info-tabla td {
-      padding: 5px 8px;
+      padding: 4px 6px;
+      border: 1px solid #e5e7eb;
       vertical-align: top;
-      border: 1px solid #ddd;
-      font-size: 9.5pt;
     }
-
-    .info-tabla .lbl {
-      width: 22%;
-      background: #f5f5f5;
-      color: #333;
-      font-weight: bold;
-      font-size: 8.5pt;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    .info-tabla .val { color: #1a1a1a; }
-    .info-tabla .val.muted { color: #888; font-style: italic; }
-
-    /* DIVISORES */
+    .info-tabla .lbl { width: 20%; background: #f9fafb; font-weight: bold; color: #374151; }
+    .info-tabla .val { color: #111827; }
+    .info-tabla .val.muted { color: #9ca3af; font-style: italic; }
     .seccion-divisora {
-      font-family: 'Arial', sans-serif;
-      font-size: 8.5pt;
-      font-weight: bold;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: #333;
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 4px;
-      margin: 22px 0 14px;
-    }
-
-    /* SECCIONES DE CONTENIDO */
-    .seccion {
-      margin-bottom: 18px;
-      page-break-inside: avoid;
-    }
-
-    .seccion-titulo {
-      font-family: 'Arial', sans-serif;
-      font-size: 9.5pt;
-      font-weight: bold;
-      color: #1a1a1a;
-      background: #f0f0f0;
-      border-left: 3px solid #1a1a1a;
-      padding: 5px 10px;
-    }
-
-    .seccion-desc {
-      font-family: 'Arial', sans-serif;
-      font-size: 8.5pt;
-      color: #666;
-      padding: 4px 10px;
-      background: #fafafa;
-      border-left: 3px solid #ccc;
-    }
-
-    .campos-tabla {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .campos-tabla td {
-      padding: 5px 10px;
-      vertical-align: top;
-      border: 1px solid #e0e0e0;
-      border-top: none;
-      font-size: 9.5pt;
-      font-family: 'Arial', sans-serif;
-    }
-
-    .campo-etiqueta {
-      width: 36%;
-      color: #444;
-      font-size: 8.5pt;
-      font-weight: bold;
-      background: #fafafa;
-    }
-
-    .campo-valor { color: #1a1a1a; }
-    .sin-resp { color: #aaa; font-style: italic; }
-
-    /* BLOQUES DE NOTAS */
-    .nota-bloque {
-      margin-bottom: 14px;
-      page-break-inside: avoid;
-    }
-
-    .nota-titulo {
-      font-family: 'Arial', sans-serif;
       font-size: 9pt;
       font-weight: bold;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #1a1a1a;
-      border-left: 3px solid #1a1a1a;
-      padding: 4px 10px;
-      background: #f0f0f0;
+      color: #111827;
+      border-bottom: 1.5px solid #e5e7eb;
+      padding-bottom: 2px;
+      margin: 16px 0 10px;
     }
-
-    .nota-cuerpo {
-      border: 1px solid #e0e0e0;
-      border-top: none;
-      padding: 10px 12px;
-      font-size: 10pt;
-      color: #222;
-      min-height: 40px;
-      line-height: 1.6;
+    .seccion { margin-bottom: 12px; page-break-inside: avoid; }
+    .seccion-titulo {
+      font-size: 9pt;
+      font-weight: 700;
+      color: #111827;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 2px;
     }
-
-    /* FIRMAS */
-    .firmas-tabla {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 36px;
-    }
-
-    .firmas-tabla td {
-      text-align: center;
-      padding: 0 20px;
-      vertical-align: bottom;
-    }
-
-    .firma-espacio { height: 48px; }
-
-    .firma-linea {
-      border-top: 1px solid #555;
-      margin-bottom: 5px;
-    }
-
-    .firma-nombre {
-      font-family: 'Arial', sans-serif;
+    .seccion-desc { font-size: 8pt; color: #4b5563; font-style: italic; margin-bottom: 6px; }
+    .campos-tabla { width: 100%; border-collapse: collapse; }
+    .campos-tabla td { padding: 3px 6px; border: 1px solid #f3f4f6; font-size: 8.5pt; vertical-align: top; }
+    .campo-etiqueta { width: 35%; color: #374151; font-weight: 600; background: #fafafa; }
+    .campo-valor { color: #111827; }
+    .sin-resp { color: #9ca3af; font-style: italic; }
+    .nota-bloque { margin-bottom: 10px; page-break-inside: avoid; }
+    .nota-titulo {
       font-size: 8.5pt;
       font-weight: bold;
-      color: #1a1a1a;
+      text-transform: uppercase;
+      color: #111827;
+      margin-bottom: 4px;
     }
-
-    .firma-rol {
-      font-family: 'Arial', sans-serif;
-      font-size: 8pt;
-      color: #666;
+    .nota-cuerpo {
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: 9pt;
+      color: #1f2937;
+      line-height: 1.4;
+      background: #f9fafb;
     }
-
-    /* PIE */
+    .firmas-tabla { width: 100%; border-collapse: collapse; margin-top: 20px; page-break-inside: avoid; }
+    .firmas-tabla td { text-align: center; padding: 0 15px; vertical-align: bottom; }
+    .firma-espacio { height: 35px; }
+    .firma-linea { border-top: 1px solid #374151; margin-bottom: 4px; }
+    .firma-nombre { font-size: 8.5pt; font-weight: bold; color: #111827; }
+    .firma-rol { font-size: 7.5pt; color: #4b5563; }
     .footer {
-      margin-top: 24px;
+      margin-top: 20px;
       padding-top: 8px;
-      border-top: 1px solid #ddd;
-      font-family: 'Arial', sans-serif;
-      font-size: 8pt;
-      color: #888;
+      border-top: 1px solid #e5e7eb;
+      font-size: 7.5pt;
+      color: #6b7280;
       text-align: center;
     }
-
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .page { padding: 28px 36px; }
-      .seccion, .nota-bloque { page-break-inside: avoid; }
+      .page { padding: 16px 24px; }
     }
   </style>
 </head>
 <body>
   <div class="page">
-
-    <!-- ENCABEZADO -->
     <div class="header">
       <div>
         ${logoHTML}
@@ -537,99 +384,60 @@ export function generarHTMLBitacora(
         ${orgContacto ? `<div class="org-contacto">${orgContacto}</div>` : ""}
       </div>
       <div class="header-derecho">
-        <span class="doc-ref">Bitacora No. ${String(data.bitacora_id).padStart(4, "0")}</span>
-        <span>Generado: ${fechaGeneracion}</span>
+        <span class="doc-ref">Bitacora No. ${String(data.bitacora_id).padStart(4, "0")} <span class="estado">Aprobado</span></span>
+        <span class="doc-meta">Generado: ${fechaGeneracion}</span>
       </div>
     </div>
-
-    <div class="doc-subtitulo">Registro de sesion de apoyo educativo especializado</div>
-
-    <!-- TITULO -->
-    <div class="doc-titulo">
-      <h1>Bitacora de Sesion</h1>
-      <span class="estado">Revisado y aprobado</span>
-    </div>
-
-    <!-- INFORMACION GENERAL -->
     <table class="info-tabla">
       <tbody>
         <tr>
-          <td class="lbl">Alumno (Pseudonimo)</td>
-          <td class="val">${data.pseudonimo}</td>
-          <td class="lbl">Nivel TEA</td>
-          <td class="val ${!data.nivel_tea ? "muted" : ""}">${data.nivel_tea ? `Nivel ${data.nivel_tea}` : "No especificado"}</td>
+          <td class="lbl">Alumno (Pseudonimo)</td><td class="val">${data.pseudonimo}</td>
+          <td class="lbl">Nivel TEA</td><td class="val ${!data.nivel_tea ? "muted" : ""}">${data.nivel_tea ? `Nivel ${data.nivel_tea}` : "No especificado"}</td>
         </tr>
         <tr>
-          <td class="lbl">Escuela</td>
-          <td class="val ${!data.escuela_actual ? "muted" : ""}">${data.escuela_actual || "No especificada"}</td>
-          <td class="lbl">Grado Escolar</td>
-          <td class="val ${!data.grado_escolar ? "muted" : ""}">${data.grado_escolar || "No especificado"}</td>
+          <td class="lbl">Escuela</td><td class="val ${!data.escuela_actual ? "muted" : ""}">${data.escuela_actual || "No especificada"}</td>
+          <td class="lbl">Grado Escolar</td><td class="val ${!data.grado_escolar ? "muted" : ""}">${data.grado_escolar || "No especificado"}</td>
         </tr>
         <tr>
-          <td class="lbl">Fecha de Sesion</td>
-          <td class="val">${fechaFormateada}</td>
-          <td class="lbl">Horario</td>
-          <td class="val">${horario}</td>
+          <td class="lbl">Fecha de Sesion</td><td class="val">${fechaFormateada}</td>
+          <td class="lbl">Horario</td><td class="val">${horario}</td>
         </tr>
         <tr>
-          <td class="lbl">Maestro Sombra</td>
-          <td class="val">${data.nombreSombra}</td>
-          <td class="lbl">Terapeuta</td>
-          <td class="val">${data.nombreTerapeuta}</td>
+          <td class="lbl">Maestro Sombra</td><td class="val">${data.nombreSombra}</td>
+          <td class="lbl">Terapeuta</td><td class="val">${data.nombreTerapeuta}</td>
         </tr>
         <tr>
-          <td class="lbl">Plantilla</td>
-          <td class="val" colspan="3">${data.nombrePlantilla}</td>
-        </tr>
-        <tr>
-          <td class="lbl">Fecha de Revision</td>
-          <td class="val">${fechaRevision}</td>
-          <td class="lbl">Estado</td>
-          <td class="val">Revisado y aprobado</td>
+          <td class="lbl">Plantilla</td><td class="val" colspan="3">${data.nombrePlantilla}</td>
         </tr>
       </tbody>
     </table>
-
-    <!-- CONTENIDO DE LA SESION -->
     <div class="seccion-divisora">Contenido de la Sesion</div>
     ${seccionesHTML}
-
     ${contextoHTML}
     ${revisionHTML}
-
-    <!-- FIRMAS -->
+    ${incluirFirmas ? `
     <div class="seccion-divisora">Firmas de Conformidad</div>
     <table class="firmas-tabla">
       <tbody>
         <tr>
           <td>
-            <div class="firma-espacio"></div>
-            <div class="firma-linea"></div>
-            <div class="firma-nombre">${data.nombreSombra}</div>
-            <div class="firma-rol">Maestro Sombra</div>
+            <div class="firma-espacio"></div><div class="firma-linea"></div>
+            <div class="firma-nombre">${data.nombreSombra}</div><div class="firma-rol">Maestro Sombra</div>
           </td>
           <td>
-            <div class="firma-espacio"></div>
-            <div class="firma-linea"></div>
-            <div class="firma-nombre">${data.nombreTerapeuta}</div>
-            <div class="firma-rol">Terapeuta</div>
+            <div class="firma-espacio"></div><div class="firma-linea"></div>
+            <div class="firma-nombre">${data.nombreTerapeuta}</div><div class="firma-rol">Terapeuta</div>
           </td>
           <td>
-            <div class="firma-espacio"></div>
-            <div class="firma-linea"></div>
-            <div class="firma-nombre">Tutor / Padre de Familia</div>
-            <div class="firma-rol">Representante Legal</div>
+            <div class="firma-espacio"></div><div class="firma-linea"></div>
+            <div class="firma-nombre">Tutor / Padre de Familia</div><div class="firma-rol">Representante Legal</div>
           </td>
         </tr>
       </tbody>
-    </table>
-
+    </table>` : ''}
     <div class="footer">
-      ${config.nombre_organizacion || "Sistema de Bitacoras"}
-      &nbsp;&nbsp;|&nbsp;&nbsp;
-      Documento generado automaticamente el ${fechaGeneracion}
+      ${config.nombre_organizacion || "Sistema de Bitacoras"} &nbsp;|&nbsp; Documento generado automaticamente el ${fechaGeneracion}
     </div>
-
   </div>
 </body>
 </html>`;

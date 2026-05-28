@@ -9,6 +9,9 @@ import {
 } from "@/services/pdf.config.service";
 import { getBitacoraPDFData, generarHTMLBitacora } from "@/services/pdf.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import * as Print from "expo-print";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -55,44 +58,26 @@ export function BitacoraPDFViewer({
     })();
   }, [visible]);
 
-  const handleGenerarPDF = async () => {
+  const generarPDF = async (incluirFirmas: boolean) => {
     if (!config.nombre_organizacion.trim()) {
       Alert.alert(
         "Nombre requerido",
         "Por favor ingresa el nombre de la organización para continuar."
       );
-      return;
+      return null;
     }
-
+    
     setLoading(true);
     try {
-      // Guardar config para la próxima vez
       if (userId) await guardarConfiguracionOrganizacion(userId, config);
-
-      // Obtener datos de la bitácora
       const data = await getBitacoraPDFData(bitacoraId);
       if (!data) {
         Alert.alert("Error", "No se pudieron cargar los datos de la bitácora.");
-        setLoading(false);
-        return;
+        return null;
       }
-
-      // Generar HTML
-      const html = generarHTMLBitacora(data, config);
-
-      // Usar expo-print para generar el PDF
-      const { printToFileAsync } = await import("expo-print");
-      const { shareAsync } = await import("expo-sharing");
-
-      const { uri } = await printToFileAsync({ html, base64: false });
-
-      // Abrir diálogo de compartir (guardar / enviar)
-      await shareAsync(uri, {
-        UTI: ".pdf",
-        mimeType: "application/pdf",
-      });
-
-      onClose();
+      const html = generarHTMLBitacora(data, config, incluirFirmas);
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      return { uri, data };
     } catch (e: any) {
       console.error("[BitacoraPDFViewer Mobile] Error generando PDF:", e);
       Alert.alert(
@@ -100,9 +85,67 @@ export function BitacoraPDFViewer({
         "Ocurrió un error al generar el PDF. Por favor intenta de nuevo.\n" +
           (e?.message || "")
       );
+      return null;
     } finally {
       setLoading(false);
     }
+  };
+
+  const preguntarOpciones = (onContinuar: (incluirFirmas: boolean) => void) => {
+    Alert.alert(
+      "Opciones del documento",
+      "¿Deseas incluir el apartado de firmas de conformidad en el PDF?",
+      [
+        {
+          text: "Sin firmas",
+          style: "default",
+          onPress: () => onContinuar(false),
+        },
+        {
+          text: "Con firmas",
+          style: "default",
+          onPress: () => onContinuar(true),
+        },
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+      ]
+    );
+  };
+
+  const handleCompartir = () => {
+    preguntarOpciones(async (incluirFirmas) => {
+      const result = await generarPDF(incluirFirmas);
+      if (!result) return;
+      try {
+        await Sharing.shareAsync(result.uri, {
+          UTI: ".pdf",
+          mimeType: "application/pdf",
+        });
+        onClose();
+      } catch (e) {
+        console.error("Error compartiendo:", e);
+      }
+    });
+  };
+
+  const handleDescargar = () => {
+    preguntarOpciones(async (incluirFirmas) => {
+      const result = await generarPDF(incluirFirmas);
+      if (!result) return;
+      try {
+        await Sharing.shareAsync(result.uri, {
+          UTI: ".pdf",
+          mimeType: "application/pdf",
+          dialogTitle: "Guardar PDF",
+        });
+        onClose();
+      } catch (e: any) {
+        console.error("Error guardando PDF:", e);
+        Alert.alert("Error", "No se pudo guardar el documento: " + (e?.message || ""));
+      }
+    });
   };
 
   const updateConfig = (
@@ -223,26 +266,32 @@ export function BitacoraPDFViewer({
             ))}
           </ScrollView>
 
-          {/* Botón de acción */}
+          {/* Botones de acción */}
           <View style={[styles.footer, { borderTopColor: border, backgroundColor: cardBg }]}>
             <TouchableOpacity
-              onPress={onClose}
-              style={[styles.cancelBtn, { borderColor: border }]}
-            >
-              <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>
-                Cancelar
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleGenerarPDF}
+              onPress={handleCompartir}
               disabled={loading}
               style={[
-                styles.generateBtn,
-                {
-                  backgroundColor: loading
-                    ? colors.primary + "80"
-                    : colors.primary,
-                },
+                styles.actionBtn,
+                { backgroundColor: loading ? colors.primary + "80" : colors.primary },
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="share-outline" size={18} color="#fff" />
+                  <Text style={styles.generateBtnText}>Compartir</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleDescargar}
+              disabled={loading}
+              style={[
+                styles.actionBtn,
+                { backgroundColor: loading ? "#10b98180" : "#10b981" },
               ]}
             >
               {loading ? (
@@ -250,7 +299,7 @@ export function BitacoraPDFViewer({
               ) : (
                 <>
                   <Ionicons name="download-outline" size={18} color="#fff" />
-                  <Text style={styles.generateBtnText}>Generar PDF</Text>
+                  <Text style={styles.generateBtnText}>Guardar</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -338,8 +387,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelBtnText: { fontSize: 14, fontWeight: "600" },
-  generateBtn: {
-    flex: 2,
+  actionBtn: {
+    flex: 1,
     height: 48,
     borderRadius: 12,
     flexDirection: "row",

@@ -1,4 +1,5 @@
 import { supabase } from "@/supabaseconfig";
+import { Platform, Alert } from "react-native";
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 export interface NotificacionData {
@@ -152,6 +153,11 @@ export async function crearNotificacion(
 
   if (error) {
     console.warn("[crearNotificacion] Error al insertar notificación en BD:", error);
+    if (Platform.OS === 'web') {
+      alert("Error al insertar notificación en BD: " + error.message);
+    } else {
+      Alert.alert("Error de Notificación", "Error en BD: " + error.message);
+    }
     return;
   }
   console.log("[crearNotificacion] Notificación insertada correctamente en BD.");
@@ -250,6 +256,11 @@ export async function notificarCasoParticipantes(
 
     if (insErr) {
       console.error("Error insertando notificaciones en lote:", insErr);
+      if (Platform.OS === 'web') {
+        alert("Error insertando notificaciones en lote: " + insErr.message);
+      } else {
+        Alert.alert("Error de Notificaciones", insErr.message);
+      }
       return;
     }
     console.log("[notificarCasoParticipantes] Notificaciones en lote insertadas correctamente.");
@@ -384,6 +395,11 @@ export async function notificarTerapeutasNuevaBitacora(
 
     if (insErr) {
       console.error("Error insertando notificaciones en lote para terapeutas:", insErr);
+      if (Platform.OS === 'web') {
+        alert("Error insertando notificaciones a terapeutas: " + insErr.message);
+      } else {
+        Alert.alert("Error Notificaciones", insErr.message);
+      }
       return;
     }
     console.log("[notificarTerapeutasNuevaBitacora] Notificaciones en lote insertadas correctamente.");

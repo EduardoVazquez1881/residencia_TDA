@@ -57,13 +57,13 @@ export function SeleccionBitacoraScreen() {
             <Ionicons name="arrow-back" size={20} color={colors.text} />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={[styles.title, { color: colors.text }]}>Plantillas</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Bitácoras</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Modela la información de tus bitácoras
+              Gestiona el registro de sesiones
             </Text>
           </View>
           <View style={[styles.headerIcon, { backgroundColor: `${colors.primary}18` }]}>
-            <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+            <Ionicons name="journal-outline" size={22} color={colors.primary} />
           </View>
         </View>
 
@@ -76,45 +76,45 @@ export function SeleccionBitacoraScreen() {
         >
           <Ionicons name="information-circle-outline" size={16} color="#3b82f6" />
           <Text style={[styles.infoChipText, { color: "#3b82f6" }]}>
-            Crea plantillas para definir la estructura de tus bitácoras.
+            Para crear una bitácora, el alumno seleccionado debe tener un caso activo.
           </Text>
         </View>
 
-        {/* ── Opción 1: Nueva Plantilla ── */}
+        {/* ── Opción 1: Nueva Bitácora ── */}
         <TouchableOpacity
           style={[styles.optionCard, cardStyle]}
           activeOpacity={0.75}
-          onPress={() => router.push("/nueva-plantilla" as any)}
+          onPress={() => router.push("/seleccion-caso" as any)}
         >
           <View style={[styles.optionIconBox, { backgroundColor: `${colors.primary}18` }]}>
             <Ionicons name="add-circle-outline" size={30} color={colors.primary} />
           </View>
           <View style={styles.optionTextBox}>
             <Text style={[styles.optionTitle, { color: colors.text }]}>
-              Nueva Plantilla
+              Nueva Bitácora
             </Text>
             <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
-              Crea un formato personalizado: define secciones, campos y tipos de respuesta
+              Selecciona un caso e inicia el registro de una nueva sesión clínica
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        {/* ── Opción 2: Mis Plantillas ── */}
+        {/* ── Opción 2: Historial ── */}
         <TouchableOpacity
           style={[styles.optionCard, cardStyle]}
           activeOpacity={0.75}
-          onPress={() => router.push("/mis-plantillas" as any)}
+          onPress={() => router.push("/reportes" as any)}
         >
           <View style={[styles.optionIconBox, { backgroundColor: "#8b5cf618" }]}>
-            <Ionicons name="documents-outline" size={30} color="#8b5cf6" />
+            <Ionicons name="time-outline" size={30} color="#8b5cf6" />
           </View>
           <View style={styles.optionTextBox}>
             <Text style={[styles.optionTitle, { color: colors.text }]}>
-              Mis Plantillas
+              Historial y Reportes
             </Text>
             <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
-              Administra tus formatos: visualiza, edita o elimina plantillas creadas por ti
+              Consulta, filtra y exporta las bitácoras anteriores
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -173,15 +173,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   optionTextBox: { flex: 1 },
-  optionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-    marginBottom: 4,
-  },
-  optionTitle: { fontSize: 16, fontWeight: "700" },
+  optionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 4 },
   optionDesc: { fontSize: 13, lineHeight: 18 },
-  soonBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
-  soonBadgeText: { fontSize: 10, fontWeight: "700" },
 });

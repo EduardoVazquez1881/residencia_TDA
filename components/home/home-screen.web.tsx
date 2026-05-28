@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import { router, Stack, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AlumnoData, getAlumnos } from "@/services/alumnos.service";
@@ -8,7 +9,6 @@ import { getMisCasos, ListaCasoData } from "@/services/casos.service";
 import { getHistorialBitacoras, HistorialBitacoraData } from "@/services/bitacoras.service";
 import { getPlantillas, PlantillaData } from "@/services/plantillas.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router, Stack } from "expo-router";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -86,9 +86,11 @@ export function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchData().finally(() => setLoading(false));
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData().finally(() => setLoading(false));
+    }, [])
+  );
 
 
   if (loading) {
@@ -130,6 +132,22 @@ export function HomeScreen() {
         p.descripcion?.toLowerCase().includes(query)
       )
     : [];
+
+  // ─── Cálculos Locales de Métricas ───
+  const hoy = new Date();
+  const hace7Dias = new Date();
+  hace7Dias.setDate(hoy.getDate() - 7);
+
+  const bitacorasSemana = bitacoras.filter(b => {
+    const d = new Date(b.fecha);
+    return d >= hace7Dias && d <= hoy;
+  }).length;
+
+  const casosActivos = casos.length;
+
+  const bitacorasPendientes = bitacoras.filter(b => {
+    return b.creado_por !== userData?.usuario_id && b.estado !== 'revisado';
+  });
 
   return (
     <WebDashboardLayout>
@@ -174,6 +192,31 @@ export function HomeScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* ── Alerta de Revisiones Pendientes ── */}
+      {bitacorasPendientes.length > 0 && (
+        <View style={[styles.alertBanner, { backgroundColor: isDark ? "#78350f" : "#fef3c7", borderColor: isDark ? "#b45309" : "#f59e0b" }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+            <View style={[styles.alertIconCircle, { backgroundColor: isDark ? "#b45309" : "#f59e0b" }]}>
+              <Ionicons name="warning" size={20} color="#fff" />
+            </View>
+            <View>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? "#fde68a" : "#b45309" }}>
+                Revisiones Pendientes
+              </Text>
+              <Text style={{ fontSize: 14, color: isDark ? "#fcd34d" : "#d97706" }}>
+                Tienes {bitacorasPendientes.length} bitácora{bitacorasPendientes.length === 1 ? '' : 's'} esperando tu evaluación.
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity 
+            style={[styles.alertBtn, { backgroundColor: isDark ? "#b45309" : "#f59e0b" }]}
+            onPress={() => router.push("/reportes" as any)}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600" }}>Revisar Ahora</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.gridContainer}>
         {/* COLUMNA IZQUIERDA: Alumnos Recientes y Acciones */}
@@ -445,8 +488,19 @@ export function HomeScreen() {
           {/* ── Resumen de Mis Alumnos ── */}
           <View style={[styles.card, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff" }]}>
             <View style={styles.cardHeader}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Mi Actividad</Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Panel de Métricas</Text>
               <Ionicons name="stats-chart-outline" size={20} color={colors.textSecondary} />
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+              <View style={[styles.metricBox, { backgroundColor: isDark ? "#1e293b" : "#f1f5f9" }]}>
+                <Text style={[styles.metricNum, { color: colors.primary }]}>{casosActivos}</Text>
+                <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Expedientes{"\n"}Activos</Text>
+              </View>
+              <View style={[styles.metricBox, { backgroundColor: isDark ? "#1e293b" : "#f1f5f9" }]}>
+                <Text style={[styles.metricNum, { color: "#10b981" }]}>{bitacorasSemana}</Text>
+                <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Bitácoras{"\n"}(Últ. 7 días)</Text>
+              </View>
             </View>
 
             {alumnos.length === 0 ? (
@@ -763,5 +817,43 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 12,
+  },
+  alertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 24,
+  },
+  alertIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  metricBox: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricNum: {
+    fontSize: 32,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  metricLabel: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

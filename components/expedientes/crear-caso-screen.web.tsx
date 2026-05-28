@@ -7,9 +7,11 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AlumnoData, getAlumnos } from "@/services/alumnos.service";
 import { getCurrentSession } from "@/services/auth.service";
 import { crearCasoCompleto, getUsuarioPorCorreo } from "@/services/casos.service";
+import { notificarCasoParticipantes } from "@/services/notificaciones.service";
 import { getPlantillas, PlantillaData } from "@/services/plantillas.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router } from "expo-router";
+import { safeBack } from "@/utils/navigation";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -140,12 +142,28 @@ export function CrearCasoScreen() {
       });
 
       if (res.error) {
-        alert("Error al crear: " + res.error);
+        alert("Error al crear:\n" + res.error);
         return;
       }
 
+      // Enviar notificaciones a los participantes
+      if (res.caso_id) {
+        try {
+          await notificarCasoParticipantes(
+            res.caso_id,
+            uid,
+            "Nuevo Expediente Asignado",
+            "Has sido añadido al equipo de trabajo de un nuevo expediente.",
+            "caso_creado",
+            res.caso_id.toString()
+          );
+        } catch (err) {
+          console.error("Error al enviar notificaciones de caso:", err);
+        }
+      }
+
       alert("¡Éxito!\n\nEl caso fue creado y asignado exitosamente.");
-      router.replace('/expedientes');
+      router.replace('/prueba' as any);
     } catch (e) {
       console.error(e);
       alert("Error: No se pudo crear el caso.");
@@ -180,7 +198,7 @@ export function CrearCasoScreen() {
       <View style={styles.headerContainer}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={safeBack}
             style={[styles.backBtn, { backgroundColor: isDark ? colors.backgroundSecondary : "#fff", borderColor: colors.border }]}
           >
             <Ionicons name="arrow-back" size={20} color={colors.text} />

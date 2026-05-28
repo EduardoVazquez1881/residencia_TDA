@@ -4,6 +4,7 @@ import { AlumnoData, getAlumnos } from "@/services/alumnos.service";
 import { getCurrentSession } from "@/services/auth.service";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useFocusEffect } from "expo-router";
+import { safeBack } from "@/utils/navigation";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -79,7 +80,7 @@ export function AlumnosListScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={safeBack}
           style={[styles.backBtn, { backgroundColor: isDark ? colors.backgroundSecondary : "#f0f4f8" }]}
         >
           <Ionicons name="arrow-back" size={20} color={colors.text} />
